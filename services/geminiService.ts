@@ -173,8 +173,18 @@ export const generateSchedule = async (teachers: Teacher[], timeSlots: string[])
             }
         });
 
-        const text = response.text.trim();
-        const result = JSON.parse(text);
+        const text = response?.text;
+        if (!text || typeof text !== 'string' || text.trim() === '') {
+            throw new Error("A IA retornou uma resposta vazia ou com formato inesperado. Verifique os dados e tente novamente.");
+        }
+
+        let result;
+        try {
+            result = JSON.parse(text.trim());
+        } catch (jsonError) {
+            console.error("Falha ao analisar o JSON da resposta da IA:", text);
+            throw new Error("A IA gerou uma resposta, mas o formato do JSON é inválido. Por favor, tente gerar novamente.");
+        }
         
         if (result.error) {
             throw new Error(`A IA detectou um conflito de agendamento: ${result.error}`);
@@ -191,21 +201,19 @@ export const generateSchedule = async (teachers: Teacher[], timeSlots: string[])
     } catch (error) {
         console.error("Error generating schedule with Gemini:", error);
 
-        if (error instanceof SyntaxError) {
-             throw new Error("A IA gerou uma resposta, mas o formato do JSON é inválido. Por favor, tente gerar novamente.");
-        }
-        
         if (error instanceof Error) {
-            if (error.message.includes("API_KEY_NOT_SELECTED")) {
-                 throw error;
+            // Re-throw specific, user-friendly errors we've created inside the try block.
+            const userFriendlyErrors = ["API_KEY_NOT_SELECTED", "conflito", "inválido", "inesperado", "sem a grade horária"];
+            if (userFriendlyErrors.some(keyword => error.message.includes(keyword))) {
+                throw error;
             }
+            // Catch the specific API key not found error from the SDK.
             if (error.message.includes("Requested entity was not found")) {
                 throw new Error("API_KEY_NOT_SELECTED");
             }
-            if (error.message.includes("conflito") || error.message.includes("inválido") || error.message.includes("sem a grade horária")) {
-                 throw error;
-            }
         }
+        
+        // All other errors (network, internal SDK errors, etc.) get the generic message.
         throw new Error("Não foi possível gerar a grade horária. Verifique a conexão e os dados dos professores e tente novamente.");
     }
 };
