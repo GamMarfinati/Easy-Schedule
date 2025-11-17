@@ -1,22 +1,5 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { Teacher, Schedule } from "../types";
-
-// Lazily initialize to avoid crashing the app on startup if process.env is not defined.
-let ai: GoogleGenAI | undefined;
-const getAi = (): GoogleGenAI => {
-    if (ai) {
-        return ai;
-    }
-
-    const API_KEY = process.env.API_KEY;
-    if (!API_KEY) {
-        // This error will be caught by the calling function and displayed to the user.
-        throw new Error("A chave de API (API_KEY) não está configurada no ambiente do projeto. Por favor, configure-a para usar a IA.");
-    }
-    ai = new GoogleGenAI({ apiKey: API_KEY });
-    return ai;
-};
 
 /**
  * Validates the generated schedule to ensure there are no logical conflicts,
@@ -105,7 +88,23 @@ export const generateSchedule = async (teachers: Teacher[], timeSlots: string[])
     `;
 
     try {
-        const geminiAI = getAi();
+        // AI Studio Integration: Check for API key selection before making a call.
+        const hasApiKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasApiKey) {
+            // Throw a specific error for the UI to handle and prompt for key selection.
+            throw new Error("API_KEY_NOT_SELECTED");
+        }
+        
+        // The API key is injected into process.env by the environment after selection.
+        const API_KEY = process.env.API_KEY;
+        if (!API_KEY) {
+            // Fallback error if the key isn't available after selection.
+            throw new Error("A chave de API foi selecionada, mas não está disponível no ambiente. Tente recarregar a página.");
+        }
+        
+        // Per guidance, create a new instance for each request to ensure the latest key is used.
+        const geminiAI = new GoogleGenAI({ apiKey: API_KEY });
+        
         const response = await geminiAI.models.generateContent({
             model: "gemini-2.5-pro",
             contents: prompt,
@@ -149,8 +148,16 @@ export const generateSchedule = async (teachers: Teacher[], timeSlots: string[])
     } catch (error) {
         console.error("Error generating schedule with Gemini:", error);
         if (error instanceof Error) {
-            // Re-throw our custom, more specific errors to be displayed in the UI
-            if (error.message.includes("API_KEY") || error.message.includes("conflito") || error.message.includes("formato inesperado") || error.message.includes("JSON é inválido")) {
+            // Handle specific errors to guide the user.
+            if (error.message.includes("API_KEY_NOT_SELECTED")) {
+                 throw error; // Re-throw for the UI to handle.
+            }
+            // If the key is invalid or revoked, prompt the user to select a new one.
+            if (error.message.includes("Requested entity was not found")) {
+                throw new Error("API_KEY_NOT_SELECTED");
+            }
+             // Re-throw our other custom, more specific errors to be displayed in the UI.
+            if (error.message.includes("conflito") || error.message.includes("formato inesperado") || error.message.includes("JSON é inválido")) {
                  throw error;
             }
         }

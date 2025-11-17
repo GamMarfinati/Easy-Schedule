@@ -23,6 +23,7 @@ const App: React.FC = () => {
   const [error, setError] = useState<ScheduleError | null>(null);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [timeSlots, setTimeSlots] = useState<string[]>(DEFAULT_TIME_SLOTS);
+  const [apiKeyRequired, setApiKeyRequired] = useState(false);
 
   const addTeacher = useCallback((newTeacherData: Omit<Teacher, 'id'>) => {
     const newTeacher: Teacher = { ...newTeacherData, id: crypto.randomUUID() };
@@ -59,6 +60,18 @@ const App: React.FC = () => {
   const handleCancelEdit = useCallback(() => {
     setEditingTeacher(null);
   }, []);
+  
+  const handleSelectApiKey = async () => {
+      try {
+        await window.aistudio.openSelectKey();
+        // Assume success, clear the error, and let the user retry.
+        setApiKeyRequired(false);
+        setError(null);
+      } catch (e) {
+          console.error("Error opening API key selection:", e);
+          setError({ message: "Não foi possível abrir o seletor de chave de API." });
+      }
+  };
 
   const handleGenerateSchedule = async () => {
     if (teachers.length === 0) {
@@ -68,12 +81,23 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError(null);
     setSchedule(null);
+    setApiKeyRequired(false);
+    
     try {
       const result = await generateSchedule(teachers, timeSlots);
       setSchedule(result);
     } catch (err) {
       if (err instanceof Error) {
         const errorMessage = err.message;
+
+        // Handle the specific API key error from the service
+        if (errorMessage.includes("API_KEY_NOT_SELECTED")) {
+            setError({ message: "É necessária uma chave de API do Google AI para continuar." });
+            setApiKeyRequired(true);
+            setIsLoading(false); // Stop loading indicator
+            return;
+        }
+
         const newError: ScheduleError = { message: '' };
 
         // Extract entities from error message to provide better feedback
@@ -205,6 +229,22 @@ const App: React.FC = () => {
                 <div className="bg-red-100 border-l-4 border-red-500 text-red-800 p-4 rounded-lg" role="alert">
                     <p className="font-bold">Erro ao Gerar Grade</p>
                     <p className="whitespace-pre-wrap">{error.message}</p>
+                    {apiKeyRequired && (
+                        <div className="mt-4">
+                            <button
+                                onClick={handleSelectApiKey}
+                                className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition"
+                            >
+                                Configurar Chave de API
+                            </button>
+                             <p className="text-xs text-red-700 mt-2">
+                                Para saber mais sobre chaves de API e cobrança,{' '}
+                                <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="underline font-semibold hover:text-red-900">
+                                    visite a documentação
+                                </a>.
+                            </p>
+                        </div>
+                    )}
                 </div>
             )}
 
