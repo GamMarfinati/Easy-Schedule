@@ -166,3 +166,46 @@ export const generateSchedule = async (teachers: Teacher[], timeSlots: string[])
         const response = await geminiAI.models.generateContent({
             model: "gemini-2.5-pro",
             contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: responseSchema,
+                thinkingConfig: { thinkingBudget: 32768 }
+            }
+        });
+
+        const text = response.text.trim();
+        const result = JSON.parse(text);
+        
+        if (result.error) {
+            throw new Error(`A IA detectou um conflito de agendamento: ${result.error}`);
+        }
+
+        if (!result.schedule) {
+             throw new Error("A IA retornou uma resposta válida, mas sem a grade horária. Verifique os dados dos professores.");
+        }
+
+        const schedule = transformFlatScheduleToNested(result.schedule, timeSlots);
+        validateGeneratedSchedule(schedule);
+        return schedule;
+
+    } catch (error) {
+        console.error("Error generating schedule with Gemini:", error);
+
+        if (error instanceof SyntaxError) {
+             throw new Error("A IA gerou uma resposta, mas o formato do JSON é inválido. Por favor, tente gerar novamente.");
+        }
+        
+        if (error instanceof Error) {
+            if (error.message.includes("API_KEY_NOT_SELECTED")) {
+                 throw error;
+            }
+            if (error.message.includes("Requested entity was not found")) {
+                throw new Error("API_KEY_NOT_SELECTED");
+            }
+            if (error.message.includes("conflito") || error.message.includes("inválido") || error.message.includes("sem a grade horária")) {
+                 throw error;
+            }
+        }
+        throw new Error("Não foi possível gerar a grade horária. Verifique a conexão e os dados dos professores e tente novamente.");
+    }
+};
