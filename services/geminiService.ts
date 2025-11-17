@@ -54,6 +54,18 @@ const validateGeneratedSchedule = (scheduleData: any): void => {
 
 
 export const generateSchedule = async (teachers: Teacher[], timeSlots: string[]): Promise<Schedule> => {
+    // FIX: Clean teacher data to remove frontend-specific UUIDs before sending to the AI.
+    // This reduces prompt complexity and prevents potential model confusion with irrelevant data.
+    const cleanedTeachers = teachers.map(({ id, name, subject, availabilityDays, classAssignments }) => ({
+        name,
+        subject,
+        availabilityDays,
+        classAssignments: classAssignments.map(({ id: assignmentId, grade, classCount }) => ({
+            grade,
+            classCount
+        }))
+    }));
+
     const prompt = `
         Você é um especialista em coordenação pedagógica. Sua tarefa é criar uma grade horária semanal sem conflitos com base nas informações dos professores e nas restrições fornecidas.
 
@@ -82,7 +94,7 @@ export const generateSchedule = async (teachers: Teacher[], timeSlots: string[])
         **IMPORTANTE:** Sua resposta DEVE CONTER APENAS o objeto JSON, seja a grade completa ou o objeto de erro. Não inclua texto explicativo, markdown (como \`\`\`json\`), ou qualquer outra coisa fora do JSON.
 
         **Informações dos Professores:**
-        ${JSON.stringify(teachers, null, 2)}
+        ${JSON.stringify(cleanedTeachers, null, 2)}
 
         Crie a grade horária completa agora.
     `;
@@ -116,14 +128,40 @@ export const generateSchedule = async (teachers: Teacher[], timeSlots: string[])
 
         const text = response.text.trim();
         
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        // Robust JSON extraction logic
+        let jsonString = text;
+        const markdownMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (markdownMatch && markdownMatch[1]) {
+            jsonString = markdownMatch[1].trim();
+        }
+
+        const firstBracket = jsonString.indexOf('{');
+        const firstSquareBracket = jsonString.indexOf('[');
         
-        if (!jsonMatch) {
-            console.error("No valid JSON object found in Gemini response. Raw response:", text);
+        let start = -1;
+        if (firstBracket === -1) {
+            start = firstSquareBracket;
+        } else if (firstSquareBracket === -1) {
+            start = firstBracket;
+        } else {
+            start = Math.min(firstBracket, firstSquareBracket);
+        }
+
+        if (start === -1) {
+            console.error("No JSON object or array found in Gemini response. Raw response:", text);
             throw new Error("A IA retornou uma resposta vazia ou em formato inesperado. Por favor, tente gerar novamente.");
         }
         
-        const jsonString = jsonMatch[0];
+        const lastBracket = jsonString.lastIndexOf('}');
+        const lastSquareBracket = jsonString.lastIndexOf(']');
+        const end = Math.max(lastBracket, lastSquareBracket);
+        
+        if (end === -1) {
+             console.error("Malformed JSON in Gemini response. Raw response:", text);
+             throw new Error("A IA retornou uma resposta em formato inesperado. Por favor, tente gerar novamente.");
+        }
+
+        jsonString = jsonString.substring(start, end + 1);
 
         try {
             const result = JSON.parse(jsonString);
