@@ -1,0 +1,5 @@
+{
+  "name": "Gerador de Grade Horária Inteligente",
+  "description": "Um aplicativo para coordenadores escolares que utiliza a IA do Gemini para criar grades horárias de professores de forma automática e sem conflitos. Adicione professores, suas disciplinas, disponibilidades e turmas, e deixe a IA gerar a programação perfeita.",
+  "requestFramePermissions": []
+}
