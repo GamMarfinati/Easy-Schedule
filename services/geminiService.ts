@@ -1,5 +1,40 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { Teacher, Schedule } from "../types";
+import { DAYS_OF_WEEK } from "../constants";
+
+/**
+ * Transforms a flat array of schedule items from the Gemini API into the nested
+ * object structure the application's UI components expect.
+ * @param flatSchedule The array of schedule items from the API.
+ * @param timeSlots The list of defined time slots for a day.
+ * @returns A nested Schedule object.
+ */
+const transformFlatScheduleToNested = (flatSchedule: any[], timeSlots: string[]): Schedule => {
+    // Initialize the schedule with all slots as null for all days of the week.
+    const nestedSchedule: Schedule = {};
+    for (const day of DAYS_OF_WEEK) {
+        nestedSchedule[day] = {};
+        for (const slot of timeSlots) {
+            nestedSchedule[day][slot] = null;
+        }
+    }
+
+    // Populate the schedule with the class data from the flat array.
+    for (const item of flatSchedule) {
+        if (item && item.day && item.timeSlot) {
+            // Ensure the day and timeSlot from the AI exist in our definitions to prevent errors.
+            if (nestedSchedule[item.day] && nestedSchedule[item.day].hasOwnProperty(item.timeSlot)) {
+                 nestedSchedule[item.day][item.timeSlot] = {
+                    grade: item.grade,
+                    subject: item.subject,
+                    teacherName: item.teacherName,
+                };
+            }
+        }
+    }
+    return nestedSchedule;
+};
+
 
 /**
  * Validates the generated schedule to ensure there are no logical conflicts,
@@ -54,8 +89,7 @@ const validateGeneratedSchedule = (scheduleData: any): void => {
 
 
 export const generateSchedule = async (teachers: Teacher[], timeSlots: string[]): Promise<Schedule> => {
-    // FIX: Clean teacher data to remove frontend-specific UUIDs before sending to the AI.
-    // This reduces prompt complexity and prevents potential model confusion with irrelevant data.
+    // Clean teacher data to remove frontend-specific UUIDs before sending to the AI.
     const cleanedTeachers = teachers.map(({ id, name, subject, availabilityDays, classAssignments }) => ({
         name,
         subject,
@@ -65,6 +99,33 @@ export const generateSchedule = async (teachers: Teacher[], timeSlots: string[])
             classCount
         }))
     }));
+    
+    // Define the response schema for the AI. This makes the output more reliable.
+    const responseSchema = {
+        type: Type.OBJECT,
+        properties: {
+            schedule: {
+                type: Type.ARRAY,
+                description: "A lista de todas as aulas alocadas na grade horária. Ficará vazia se um erro ocorrer.",
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        day: { type: Type.STRING, description: "O dia da semana (ex: 'Segunda-feira')." },
+                        timeSlot: { type: Type.STRING, description: "O período da aula (ex: '1ª Aula')." },
+                        grade: { type: Type.STRING, description: "A turma para a qual a aula é (ex: '9º Ano EF')." },
+                        subject: { type: Type.STRING, description: "A disciplina da aula (ex: 'Matemática')." },
+                        teacherName: { type: Type.STRING, description: "O nome do professor que ministrará a aula." },
+                    },
+                    required: ['day', 'timeSlot', 'grade', 'subject', 'teacherName'],
+                },
+            },
+            error: {
+                type: Type.STRING,
+                description: "Uma mensagem de erro descritiva se a grade não puder ser gerada. Será nulo ou ausente em caso de sucesso.",
+                nullable: true,
+            },
+        },
+    };
 
     const prompt = `
         Você é um especialista em coordenação pedagógica. Sua tarefa é criar uma grade horária semanal sem conflitos com base nas informações dos professores e nas restrições fornecidas.
@@ -79,127 +140,29 @@ export const generateSchedule = async (teachers: Teacher[], timeSlots: string[])
         7. Distribua as aulas de um mesmo professor para uma mesma turma em dias diferentes, se possível. Evite aulas duplas (geminadas).
 
         **Formato da Resposta:**
-        - O resultado DEVE ser um objeto JSON válido.
-        - As chaves de nível superior devem ser os dias da semana: "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira".
-        - Cada dia deve ser um objeto onde as chaves são os períodos definidos: ${timeSlots.map(t => `"${t}"`).join(', ')}.
-        - O valor para cada período de aula deve ser um objeto com as chaves "grade", "subject", e "teacherName".
-        - O valor para períodos que não são de aula (como intervalos ou almoço) ou horários vagos deve ser \`null\`.
-        - Exemplo para um horário preenchido: \`"1ª Aula": {"grade": "1º Ano EM", "subject": "Português", "teacherName": "Maria Souza"}\`
-        - Exemplo para um horário vago ou intervalo: \`"Intervalo": null\`
-
-        **Regra de Falha:**
-        - Se for impossível criar uma grade que satisfaça TODAS as restrições, em vez da grade, retorne um objeto JSON com uma única chave "error" contendo uma string que descreva o conflito específico encontrado.
-        - Exemplo de erro: \`{"error": "Não foi possível alocar todas as aulas de Maria Souza (Português) para o 1º Ano EM devido à falta de horários disponíveis."}\`
-
-        **IMPORTANTE:** Sua resposta DEVE CONTER APENAS o objeto JSON, seja a grade completa ou o objeto de erro. Não inclua texto explicativo, markdown (como \`\`\`json\`), ou qualquer outra coisa fora do JSON.
+        - O resultado DEVE ser um objeto JSON válido que corresponda ao esquema fornecido.
+        - Em caso de sucesso, retorne um objeto com uma chave "schedule" contendo uma lista de todas as aulas alocadas.
+        - Se for impossível criar uma grade que satisfaça TODAS as restrições, retorne um objeto com uma chave "error" contendo uma string que descreva o conflito específico encontrado.
 
         **Informações dos Professores:**
         ${JSON.stringify(cleanedTeachers, null, 2)}
 
-        Crie a grade horária completa agora.
+        Crie a grade horária completa agora. Sua resposta DEVE SER APENAS o objeto JSON.
     `;
 
     try {
-        // AI Studio Integration: Check for API key selection before making a call.
         const hasApiKey = await window.aistudio.hasSelectedApiKey();
         if (!hasApiKey) {
-            // Throw a specific error for the UI to handle and prompt for key selection.
             throw new Error("API_KEY_NOT_SELECTED");
         }
         
-        // The API key is injected into process.env by the environment after selection.
         const API_KEY = process.env.API_KEY;
         if (!API_KEY) {
-            // Fallback error if the key isn't available after selection.
             throw new Error("A chave de API foi selecionada, mas não está disponível no ambiente. Tente recarregar a página.");
         }
         
-        // Per guidance, create a new instance for each request to ensure the latest key is used.
         const geminiAI = new GoogleGenAI({ apiKey: API_KEY });
         
         const response = await geminiAI.models.generateContent({
             model: "gemini-2.5-pro",
             contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                thinkingConfig: { thinkingBudget: 32768 }
-            },
-        });
-
-        const text = response.text.trim();
-        
-        // Robust JSON extraction logic
-        let jsonString = text;
-        const markdownMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-        if (markdownMatch && markdownMatch[1]) {
-            jsonString = markdownMatch[1].trim();
-        }
-
-        const firstBracket = jsonString.indexOf('{');
-        const firstSquareBracket = jsonString.indexOf('[');
-        
-        let start = -1;
-        if (firstBracket === -1) {
-            start = firstSquareBracket;
-        } else if (firstSquareBracket === -1) {
-            start = firstBracket;
-        } else {
-            start = Math.min(firstBracket, firstSquareBracket);
-        }
-
-        if (start === -1) {
-            console.error("No JSON object or array found in Gemini response. Raw response:", text);
-            throw new Error("A IA retornou uma resposta vazia ou em formato inesperado. Por favor, tente gerar novamente.");
-        }
-        
-        const lastBracket = jsonString.lastIndexOf('}');
-        const lastSquareBracket = jsonString.lastIndexOf(']');
-        const end = Math.max(lastBracket, lastSquareBracket);
-        
-        if (end === -1) {
-             console.error("Malformed JSON in Gemini response. Raw response:", text);
-             throw new Error("A IA retornou uma resposta em formato inesperado. Por favor, tente gerar novamente.");
-        }
-
-        jsonString = jsonString.substring(start, end + 1);
-
-        try {
-            const result = JSON.parse(jsonString);
-            
-            if (result.error) {
-                throw new Error(`A IA detectou um conflito de agendamento: ${result.error}`);
-            }
-
-            // Validate the schedule for logical conflicts before accepting it.
-            validateGeneratedSchedule(result);
-
-            const schedule = result as Schedule;
-            return schedule;
-        } catch (jsonError) {
-             console.error("Failed to parse or validate JSON from Gemini response. Cleaned JSON string:", jsonString, "Original response:", text, "Error:", jsonError);
-             if (jsonError instanceof Error && (jsonError.message.startsWith("A IA detectou") || jsonError.message.includes("Conflito de agendamento"))) {
-                throw jsonError;
-             }
-             throw new Error("A IA gerou uma resposta, mas o formato do JSON é inválido ou contém conflitos internos. Por favor, tente gerar novamente.");
-        }
-
-    } catch (error) {
-        console.error("Error generating schedule with Gemini:", error);
-        if (error instanceof Error) {
-            // Handle specific errors to guide the user.
-            if (error.message.includes("API_KEY_NOT_SELECTED")) {
-                 throw error; // Re-throw for the UI to handle.
-            }
-            // If the key is invalid or revoked, prompt the user to select a new one.
-            if (error.message.includes("Requested entity was not found")) {
-                throw new Error("API_KEY_NOT_SELECTED");
-            }
-             // Re-throw our other custom, more specific errors to be displayed in the UI.
-            if (error.message.includes("conflito") || error.message.includes("formato inesperado") || error.message.includes("JSON é inválido")) {
-                 throw error;
-            }
-        }
-        // Throw a generic error for other API or network issues
-        throw new Error("Não foi possível gerar a grade horária. Verifique a conexão e os dados dos professores e tente novamente.");
-    }
-};
