@@ -1,13 +1,22 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { Teacher, Schedule } from "../types";
 
-const API_KEY = process.env.API_KEY;
+// Lazily initialize to avoid crashing the app on startup if process.env is not defined.
+let ai: GoogleGenAI | undefined;
+const getAi = (): GoogleGenAI => {
+    if (ai) {
+        return ai;
+    }
 
-if (!API_KEY) {
-    throw new Error("API_KEY environment variable is not set");
-}
-
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const API_KEY = process.env.API_KEY;
+    if (!API_KEY) {
+        // This error will be caught by the calling function and displayed to the user.
+        throw new Error("A chave de API (API_KEY) não está configurada no ambiente do projeto. Por favor, configure-a para usar a IA.");
+    }
+    ai = new GoogleGenAI({ apiKey: API_KEY });
+    return ai;
+};
 
 /**
  * Validates the generated schedule to ensure there are no logical conflicts,
@@ -96,7 +105,8 @@ export const generateSchedule = async (teachers: Teacher[], timeSlots: string[])
     `;
 
     try {
-        const response = await ai.models.generateContent({
+        const geminiAI = getAi();
+        const response = await geminiAI.models.generateContent({
             model: "gemini-2.5-pro",
             contents: prompt,
             config: {
@@ -140,7 +150,7 @@ export const generateSchedule = async (teachers: Teacher[], timeSlots: string[])
         console.error("Error generating schedule with Gemini:", error);
         if (error instanceof Error) {
             // Re-throw our custom, more specific errors to be displayed in the UI
-            if (error.message.includes("conflito") || error.message.includes("formato inesperado") || error.message.includes("JSON é inválido")) {
+            if (error.message.includes("API_KEY") || error.message.includes("conflito") || error.message.includes("formato inesperado") || error.message.includes("JSON é inválido")) {
                  throw error;
             }
         }
