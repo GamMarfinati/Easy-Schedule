@@ -14,6 +14,7 @@ interface ScheduleError {
   conflictingTeachers?: string[];
   conflictingGrades?: string[];
   conflictingDays?: string[];
+  isConfigError?: boolean;
 }
 
 const App: React.FC = () => {
@@ -23,7 +24,7 @@ const App: React.FC = () => {
   const [error, setError] = useState<ScheduleError | null>(null);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [timeSlots, setTimeSlots] = useState<string[]>(DEFAULT_TIME_SLOTS);
-  const [apiKeyRequired, setApiKeyRequired] = useState(false);
+  const [permissionErrorLink, setPermissionErrorLink] = useState<string | null>(null);
 
   const addTeacher = useCallback((newTeacherData: Omit<Teacher, 'id'>) => {
     const newTeacher: Teacher = { ...newTeacherData, id: crypto.randomUUID() };
@@ -60,18 +61,6 @@ const App: React.FC = () => {
   const handleCancelEdit = useCallback(() => {
     setEditingTeacher(null);
   }, []);
-  
-  const handleSelectApiKey = async () => {
-      try {
-        await window.aistudio.openSelectKey();
-        // Assume success, clear the error, and let the user retry.
-        setApiKeyRequired(false);
-        setError(null);
-      } catch (e) {
-          console.error("Error opening API key selection:", e);
-          setError({ message: "Não foi possível abrir o seletor de chave de API." });
-      }
-  };
 
   const handleGenerateSchedule = async () => {
     if (teachers.length === 0) {
@@ -80,8 +69,7 @@ const App: React.FC = () => {
     }
     setIsLoading(true);
     setError(null);
-    setSchedule(null);
-    setApiKeyRequired(false);
+    setPermissionErrorLink(null);
     
     try {
       const result = await generateSchedule(teachers, timeSlots);
@@ -90,11 +78,20 @@ const App: React.FC = () => {
       if (err instanceof Error) {
         const errorMessage = err.message;
 
-        // Handle the specific API key error from the service
-        if (errorMessage.includes("API_KEY_NOT_SELECTED")) {
-            setError({ message: "É necessária uma chave de API do Google AI para continuar." });
-            setApiKeyRequired(true);
-            setIsLoading(false); // Stop loading indicator
+        // Handle specific error types from the service for better UX
+        if (errorMessage.includes("API_KEY_MISSING")) {
+            setError({ 
+                message: "A variável de ambiente API_KEY não foi definida. Por favor, configure-a nas variáveis de ambiente do seu projeto na Vercel (ou outra plataforma de hospedagem) para usar a IA.",
+                isConfigError: true,
+            });
+            setIsLoading(false);
+            return;
+        }
+
+        if (errorMessage.includes("API_PERMISSION_DENIED")) {
+            setError({ message: "Sua chave de API é válida, mas a API Gemini não está ativada no seu projeto Google Cloud." });
+            setPermissionErrorLink("https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com");
+            setIsLoading(false);
             return;
         }
 
@@ -226,22 +223,16 @@ const App: React.FC = () => {
             </div>
             
             {error && (
-                <div className="bg-red-100 border-l-4 border-red-500 text-red-800 p-4 rounded-lg" role="alert">
-                    <p className="font-bold">Erro ao Gerar Grade</p>
+                <div className={`border-l-4 p-4 rounded-lg ${error.isConfigError ? 'bg-yellow-100 border-yellow-500 text-yellow-800' : 'bg-red-100 border-red-500 text-red-800'}`} role="alert">
+                    <p className="font-bold">{error.isConfigError ? 'Erro de Configuração' : 'Erro ao Gerar Grade'}</p>
                     <p className="whitespace-pre-wrap">{error.message}</p>
-                    {apiKeyRequired && (
+                    {permissionErrorLink && (
                         <div className="mt-4">
-                            <button
-                                onClick={handleSelectApiKey}
-                                className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition"
-                            >
-                                Configurar Chave de API
-                            </button>
-                             <p className="text-xs text-red-700 mt-2">
-                                Para saber mais sobre chaves de API e cobrança,{' '}
-                                <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="underline font-semibold hover:text-red-900">
-                                    visite a documentação
-                                </a>.
+                             <a href={permissionErrorLink} target="_blank" rel="noopener noreferrer" className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition inline-block">
+                                Ativar API Gemini
+                            </a>
+                            <p className="text-xs text-red-700 mt-2">
+                                É necessário ativar a API no seu projeto do Google Cloud para prosseguir.
                             </p>
                         </div>
                     )}
