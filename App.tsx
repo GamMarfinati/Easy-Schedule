@@ -1,4 +1,6 @@
 import React, { useState, useCallback } from 'react';
+import { useUser } from "@clerk/clerk-react";
+import SubscriptionModal from './components/SubscriptionModal';
 import { Teacher, Schedule } from './types';
 import TeacherForm from './components/TeacherForm';
 import ScheduleDisplay from './components/ScheduleDisplay';
@@ -25,6 +27,11 @@ const App: React.FC = () => {
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [timeSlots, setTimeSlots] = useState<string[]>(DEFAULT_TIME_SLOTS);
   const [permissionErrorLink, setPermissionErrorLink] = useState<string | null>(null);
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const { user } = useUser();
+
+  const isPremium = user?.publicMetadata?.subscription === 'premium';
+  const STRIPE_LINK = "https://buy.stripe.com/test_6oU6oB94Ab8WcGZ3xL5Ne00";
 
   const addTeacher = useCallback((newTeacherData: Omit<Teacher, 'id'>) => {
     const newTeacher: Teacher = { ...newTeacherData, id: crypto.randomUUID() };
@@ -63,6 +70,11 @@ const App: React.FC = () => {
   }, []);
 
   const handleGenerateSchedule = async () => {
+    if (!isPremium) {
+      setIsSubscriptionModalOpen(true);
+      return;
+    }
+
     if (teachers.length === 0) {
       setError({ message: "Adicione pelo menos um professor antes de gerar a grade." });
       return;
@@ -273,6 +285,12 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
+
+      <SubscriptionModal
+        isOpen={isSubscriptionModalOpen}
+        onClose={() => setIsSubscriptionModalOpen(false)}
+        stripeLink={STRIPE_LINK}
+      />
     </div>
   );
 };

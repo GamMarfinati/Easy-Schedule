@@ -26,6 +26,31 @@ Restringir a funcionalidade de "Gerar Grade" apenas para usuários pagantes (ass
 *   [ ] Criar uma página de "Planos" no app com o link de checkout do Stripe.
 *   [ ] Configurar o Stripe para redirecionar de volta para o app após o pagamento.
 
+## Integração Stripe (MVP)
+
+### Estratégia
+Para evitar custos com banco de dados neste momento, usaremos os **Metadados do Usuário (User Metadata)** do Clerk para armazenar o status da assinatura (`subscription: "premium"`).
+O fluxo será:
+1. Usuário clica em "Gerar Grade".
+2. App verifica se `user.publicMetadata.subscription === 'premium'`.
+3. Se não for, abre um modal com o link de pagamento do Stripe.
+4. (Futuro/Manual) O status é atualizado via Webhook ou manualmente no painel do Clerk.
+
+### Arquivos
+#### [NEW] [SubscriptionModal.tsx](file:///home/gam/Documentos/Antigravity/easeschedule/Easy-Schedule/components/SubscriptionModal.tsx)
+- Modal que explica os benefícios e tem o botão de "Assinar".
+
+#### [MODIFY] [App.tsx](file:///home/gam/Documentos/Antigravity/easeschedule/Easy-Schedule/App.tsx)
+- Adicionar verificação de metadados antes de gerar.
+- Integrar o `SubscriptionModal`.
+
+## Verification Plan
+### Manual Verification
+- Tentar gerar grade sem ser premium -> Deve abrir modal.
+- Clicar em assinar -> Deve abrir Stripe.
+- Adicionar manualmente `{"subscription": "premium"}` no Clerk Dashboard.
+- Tentar gerar grade novamente -> Deve funcionar.
+
 ### 4. Integração Backend (Segurança Real)
 *   [ ] Instalar `@clerk/backend` na API (`api/generate.ts`).
 *   [ ] Verificar no backend se o usuário está autenticado antes de gerar a grade.
