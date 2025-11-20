@@ -21,7 +21,7 @@ const transformFlatScheduleToNested = (flatSchedule: any[], timeSlots: string[])
     for (const item of flatSchedule) {
         if (item && item.day && item.timeSlot) {
             if (nestedSchedule[item.day] && nestedSchedule[item.day].hasOwnProperty(item.timeSlot)) {
-                 nestedSchedule[item.day][item.timeSlot] = {
+                nestedSchedule[item.day][item.timeSlot] = {
                     grade: item.grade,
                     subject: item.subject,
                     teacherName: item.teacherName,
@@ -67,7 +67,7 @@ export default async function handler(req, res) {
         const { teachers, timeSlots } = req.body;
 
         if (!teachers || !timeSlots || !Array.isArray(teachers) || !Array.isArray(timeSlots)) {
-             return res.status(400).json({ error: 'Dados de entrada inválidos.' });
+            return res.status(400).json({ error: 'Dados de entrada inválidos.' });
         }
 
         const cleanedTeachers = teachers.map(({ id, name, subject, availabilityDays, classAssignments }) => ({
@@ -100,7 +100,7 @@ export default async function handler(req, res) {
             Crie a grade horária. Sua resposta DEVE SER APENAS o objeto JSON.`;
 
         // A chave de API é acessada de forma segura no ambiente do servidor.
-        const API_KEY = process.env.API_KEY;
+        const API_KEY = process.env.GEMINI_API_KEY || process.env.API_KEY;
         if (!API_KEY) {
             return res.status(500).json({ error: "API_KEY_MISSING: A variável de ambiente API_KEY não foi configurada no servidor." });
         }
@@ -122,24 +122,24 @@ export default async function handler(req, res) {
         }
 
         const result = JSON.parse(text.trim());
-        
+
         if (result.error) {
             return res.status(400).json({ error: `A IA detectou um conflito: ${result.error}` });
         }
 
         if (!result.schedule) {
-             return res.status(500).json({ error: "A IA retornou uma resposta válida, mas sem a grade horária." });
+            return res.status(500).json({ error: "A IA retornou uma resposta válida, mas sem a grade horária." });
         }
 
         const schedule = transformFlatScheduleToNested(result.schedule, timeSlots);
         validateGeneratedSchedule(schedule);
-        
+
         // Retorna a grade com sucesso para o frontend.
         return res.status(200).json({ schedule });
 
     } catch (error) {
         console.error("Erro na função serverless:", error);
-        
+
         let errorMessage = "Erro interno do servidor ao gerar a grade.";
         if (error instanceof Error) {
             const message = error.message.toLowerCase();
@@ -147,11 +147,11 @@ export default async function handler(req, res) {
                 errorMessage = "API_PERMISSION_DENIED: A API Gemini não foi ativada no projeto Google Cloud associado a esta chave.";
                 return res.status(403).json({ error: errorMessage });
             }
-             if (message.includes("json")) {
+            if (message.includes("json")) {
                 errorMessage = "A IA gerou uma resposta com JSON inválido.";
             }
         }
-        
+
         return res.status(500).json({ error: errorMessage });
     }
 }
