@@ -7,7 +7,7 @@ import TimeSlotManager from './components/TimeSlotManager';
 import { generateSchedule } from './services/geminiService';
 import DataImporter from './components/DataImporter';
 import { DEFAULT_TIME_SLOTS } from './constants';
-
+import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react";
 
 interface ScheduleError {
   message: string;
@@ -37,7 +37,7 @@ const App: React.FC = () => {
       setEditingTeacher(null);
     }
   }, [editingTeacher]);
-  
+
   const handleImport = useCallback((importedTeachers: Teacher[]) => {
     setTeachers(importedTeachers);
     setSchedule(null);
@@ -70,7 +70,7 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError(null);
     setPermissionErrorLink(null);
-    
+
     try {
       const result = await generateSchedule(teachers, timeSlots);
       setSchedule(result);
@@ -80,19 +80,19 @@ const App: React.FC = () => {
 
         // Handle specific error types from the service for better UX
         if (errorMessage.includes("API_KEY_MISSING")) {
-            setError({ 
-                message: "A variável de ambiente API_KEY não foi definida. Por favor, configure-a nas variáveis de ambiente do seu projeto na Vercel (ou outra plataforma de hospedagem) para usar a IA.",
-                isConfigError: true,
-            });
-            setIsLoading(false);
-            return;
+          setError({
+            message: "A variável de ambiente API_KEY não foi definida. Por favor, configure-a nas variáveis de ambiente do seu projeto na Vercel (ou outra plataforma de hospedagem) para usar a IA.",
+            isConfigError: true,
+          });
+          setIsLoading(false);
+          return;
         }
 
         if (errorMessage.includes("API_PERMISSION_DENIED")) {
-            setError({ message: "Sua chave de API é válida, mas a API Gemini não está ativada no seu projeto Google Cloud." });
-            setPermissionErrorLink("https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com");
-            setIsLoading(false);
-            return;
+          setError({ message: "Sua chave de API é válida, mas a API Gemini não está ativada no seu projeto Google Cloud." });
+          setPermissionErrorLink("https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com");
+          setIsLoading(false);
+          return;
         }
 
         const newError: ScheduleError = { message: '' };
@@ -109,14 +109,14 @@ const App: React.FC = () => {
         const conflictingGrades = new Set<string>();
         let gradeMatch;
         while ((gradeMatch = gradeRegex.exec(errorMessage)) !== null) {
-            conflictingGrades.add(gradeMatch[1] || gradeMatch[2]);
+          conflictingGrades.add(gradeMatch[1] || gradeMatch[2]);
         }
-        
+
         const dayRegex = /\((Segunda-feira|Terça-feira|Quarta-feira|Quinta-feira|Sexta-feira)/g;
         const conflictingDays = new Set<string>();
         let dayMatch;
         while ((dayMatch = dayRegex.exec(errorMessage)) !== null) {
-            conflictingDays.add(dayMatch[1]);
+          conflictingDays.add(dayMatch[1]);
         }
 
         if (conflictingTeachers.size > 0) newError.conflictingTeachers = Array.from(conflictingTeachers);
@@ -125,19 +125,19 @@ const App: React.FC = () => {
 
         let suggestion = '';
         if (errorMessage.includes("excede o número total de horários")) {
-            const classSlotsCount = timeSlots.filter(slot => slot.toLowerCase().includes('aula')).length;
-            const totalAvailableSlots = 5 * classSlotsCount;
-            suggestion = `\n\n**Sugestões:**\n• Verifique se a soma total de aulas de todas as turmas não ultrapassa o total de horários disponíveis na semana (${totalAvailableSlots}).\n• Aumente os dias de disponibilidade dos professores ou adicione mais períodos de aula.`;
+          const classSlotsCount = timeSlots.filter(slot => slot.toLowerCase().includes('aula')).length;
+          const totalAvailableSlots = 5 * classSlotsCount;
+          suggestion = `\n\n**Sugestões:**\n• Verifique se a soma total de aulas de todas as turmas não ultrapassa o total de horários disponíveis na semana (${totalAvailableSlots}).\n• Aumente os dias de disponibilidade dos professores ou adicione mais períodos de aula.`;
         } else if (newError.conflictingTeachers?.length > 0) {
-            suggestion = `\n\n**Sugestões:**\n• Verifique a disponibilidade do professor ${newError.conflictingTeachers[0]} no dia do conflito.\n• Certifique-se de que a carga horária dele não é excessiva para os dias disponíveis.`;
+          suggestion = `\n\n**Sugestões:**\n• Verifique a disponibilidade do professor ${newError.conflictingTeachers[0]} no dia do conflito.\n• Certifique-se de que a carga horária dele não é excessiva para os dias disponíveis.`;
         } else if (newError.conflictingGrades?.length > 0) {
-            suggestion = `\n\n**Sugestões:**\n• Verifique se a turma ${newError.conflictingGrades[0]} não tem mais aulas do que o necessário.\n• Garanta que há professores suficientes para cobrir todas as aulas da turma.`;
+          suggestion = `\n\n**Sugestões:**\n• Verifique se a turma ${newError.conflictingGrades[0]} não tem mais aulas do que o necessário.\n• Garanta que há professores suficientes para cobrir todas as aulas da turma.`;
         }
-        
+
         const cleanMessage = errorMessage
-            .replace('A IA detectou um conflito de agendamento: ', '')
-            .replace('Conflito de agendamento: ', '');
-            
+          .replace('A IA detectou um conflito de agendamento: ', '')
+          .replace('Conflito de agendamento: ', '');
+
         newError.message = cleanMessage + suggestion;
         setError(newError);
 
@@ -153,14 +153,25 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-           <div className="flex items-center gap-3">
-             <div className="bg-primary p-2 rounded-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
+          <div className="flex items-center gap-3">
+            <div className="bg-primary p-2 rounded-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
             </div>
             <h1 className="text-2xl font-bold text-gray-800">Gerador de Grade Horária Inteligente</h1>
-           </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <SignedOut>
+              <SignInButton mode="modal">
+                <button className="text-primary font-semibold hover:underline">Entrar</button>
+              </SignInButton>
+            </SignedOut>
+            <SignedIn>
+              <UserButton />
+            </SignedIn>
+          </div>
         </div>
       </header>
 
@@ -177,73 +188,87 @@ const App: React.FC = () => {
             />
             {teachers.length > 0 && (
               <div className="space-y-4">
-                 <h3 className="text-xl font-bold text-gray-800">Professores Adicionados</h3>
-                 {teachers.map(teacher => (
-                    <TeacherCard 
-                      key={teacher.id} 
-                      teacher={teacher} 
-                      onRemove={removeTeacher} 
-                      onEdit={handleEditTeacher}
-                      isConflicting={error?.conflictingTeachers?.includes(teacher.name)}
-                      conflictingDays={error?.conflictingTeachers?.includes(teacher.name) ? error.conflictingDays : undefined}
-                    />
-                 ))}
+                <h3 className="text-xl font-bold text-gray-800">Professores Adicionados</h3>
+                {teachers.map(teacher => (
+                  <TeacherCard
+                    key={teacher.id}
+                    teacher={teacher}
+                    onRemove={removeTeacher}
+                    onEdit={handleEditTeacher}
+                    isConflicting={error?.conflictingTeachers?.includes(teacher.name)}
+                    conflictingDays={error?.conflictingTeachers?.includes(teacher.name) ? error.conflictingDays : undefined}
+                  />
+                ))}
               </div>
             )}
           </div>
 
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white p-6 rounded-2xl shadow-lg">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div>
-                        <h2 className="text-xl font-bold text-gray-800">Sua Grade Horária</h2>
-                        <p className="text-gray-500 mt-1">Pronto para organizar a semana? Adicione os professores e clique em gerar.</p>
-                    </div>
-                    <button 
-                        onClick={handleGenerateSchedule}
-                        disabled={isLoading || teachers.length === 0}
-                        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-primary text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed disabled:scale-100"
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800">Sua Grade Horária</h2>
+                  <p className="text-gray-500 mt-1">Pronto para organizar a semana? Adicione os professores e clique em gerar.</p>
+                </div>
+
+                <div className="w-full sm:w-auto">
+                  <SignedOut>
+                    <SignInButton mode="modal">
+                      <button className="w-full flex items-center justify-center gap-2 bg-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 shadow-md">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 3a1 1 0 011 1v12a1 1 0 11-2 0V4a1 1 0 011-1zm7.707 3.293a1 1 0 010 1.414L9.414 9H17a1 1 0 110 2H9.414l1.293 1.293a1 1 0 01-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                        Entrar para Gerar
+                      </button>
+                    </SignInButton>
+                  </SignedOut>
+
+                  <SignedIn>
+                    <button
+                      onClick={handleGenerateSchedule}
+                      disabled={isLoading || teachers.length === 0}
+                      className="w-full flex items-center justify-center gap-2 bg-primary text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed disabled:scale-100"
                     >
-                         {isLoading ? (
-                            <>
-                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                Gerando...
-                            </>
-                         ) : (
-                            <>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" /></svg>
-                                Gerar Grade Horária
-                            </>
-                         )}
+                      {isLoading ? (
+                        <>
+                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Gerando...
+                        </>
+                      ) : (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" /></svg>
+                          Gerar Grade Horária
+                        </>
+                      )}
                     </button>
+                  </SignedIn>
                 </div>
+              </div>
             </div>
-            
+
             {error && (
-                <div className={`border-l-4 p-4 rounded-lg ${error.isConfigError ? 'bg-yellow-100 border-yellow-500 text-yellow-800' : 'bg-red-100 border-red-500 text-red-800'}`} role="alert">
-                    <p className="font-bold">{error.isConfigError ? 'Erro de Configuração' : 'Erro ao Gerar Grade'}</p>
-                    <p className="whitespace-pre-wrap">{error.message}</p>
-                    {permissionErrorLink && (
-                        <div className="mt-4">
-                             <a href={permissionErrorLink} target="_blank" rel="noopener noreferrer" className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition inline-block">
-                                Ativar API Gemini
-                            </a>
-                            <p className="text-xs text-red-700 mt-2">
-                                É necessário ativar a API no seu projeto do Google Cloud para prosseguir.
-                            </p>
-                        </div>
-                    )}
-                </div>
+              <div className={`border-l-4 p-4 rounded-lg ${error.isConfigError ? 'bg-yellow-100 border-yellow-500 text-yellow-800' : 'bg-red-100 border-red-500 text-red-800'}`} role="alert">
+                <p className="font-bold">{error.isConfigError ? 'Erro de Configuração' : 'Erro ao Gerar Grade'}</p>
+                <p className="whitespace-pre-wrap">{error.message}</p>
+                {permissionErrorLink && (
+                  <div className="mt-4">
+                    <a href={permissionErrorLink} target="_blank" rel="noopener noreferrer" className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition inline-block">
+                      Ativar API Gemini
+                    </a>
+                    <p className="text-xs text-red-700 mt-2">
+                      É necessário ativar a API no seu projeto do Google Cloud para prosseguir.
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
 
-            <ScheduleDisplay 
-                schedule={schedule} 
-                isLoading={isLoading} 
-                timeSlots={timeSlots} 
-                teachers={teachers} 
+            <ScheduleDisplay
+              schedule={schedule}
+              isLoading={isLoading}
+              timeSlots={timeSlots}
+              teachers={teachers}
             />
           </div>
         </div>
