@@ -1,14 +1,48 @@
 // @ts-nocheck
-// Vercel Serverless Function
-// A tipagem do Request e Response pode variar dependendo do framework (Express, etc.)
-// Para a Vercel, usamos a interface padrão ou a do Next.js se aplicável.
-// Usamos // @ts-nocheck para simplicidade neste ambiente.
-
 import { GoogleGenAI, Type } from "@google/genai";
-import { Teacher, Schedule } from "../types";
-import { DAYS_OF_WEEK } from "../constants";
 
-// As funções auxiliares que estavam no serviço agora rodam no backend.
+// --- Constants & Types Inlined for Vercel Compatibility ---
+
+const DAYS_OF_WEEK = [
+    "Segunda-feira",
+    "Terça-feira",
+    "Quarta-feira",
+    "Quinta-feira",
+    "Sexta-feira",
+];
+
+interface Teacher {
+    id: string;
+    name: string;
+    subject: string;
+    availabilityDays: string[];
+    classAssignments: {
+        id: string;
+        grade: string;
+        classCount: number;
+    }[];
+}
+
+interface ScheduleItem {
+    day: string;
+    timeSlot: string;
+    grade: string;
+    subject: string;
+    teacherName: string;
+}
+
+interface Schedule {
+    [day: string]: {
+        [timeSlot: string]: {
+            grade: string;
+            subject: string;
+            teacherName: string;
+        } | null;
+    };
+}
+
+// --- Helper Functions ---
+
 const transformFlatScheduleToNested = (flatSchedule: any[], timeSlots: string[]): Schedule => {
     const nestedSchedule: Schedule = {};
     for (const day of DAYS_OF_WEEK) {
@@ -57,8 +91,23 @@ const validateGeneratedSchedule = (scheduleData: any): void => {
     }
 };
 
-// Esta é a função principal que a Vercel executará.
+// --- Main Handler ---
+
 export default async function handler(req, res) {
+    // Enable CORS
+    res.setHeader('Access-Control-Allow-Credentials', true);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+    res.setHeader(
+        'Access-Control-Allow-Headers',
+        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+    );
+
+    if (req.method === 'OPTIONS') {
+        res.status(200).end();
+        return;
+    }
+
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Método não permitido' });
     }
@@ -99,10 +148,9 @@ export default async function handler(req, res) {
             Informações dos Professores: ${JSON.stringify(cleanedTeachers, null, 2)}
             Crie a grade horária. Sua resposta DEVE SER APENAS o objeto JSON.`;
 
-        // A chave de API é acessada de forma segura no ambiente do servidor.
         const API_KEY = process.env.GEMINI_API_KEY || process.env.API_KEY;
         if (!API_KEY) {
-            return res.status(500).json({ error: "API_KEY_MISSING: A variável de ambiente API_KEY não foi configurada no servidor." });
+            return res.status(500).json({ error: "API_KEY_MISSING: A variável de ambiente GEMINI_API_KEY não foi configurada no servidor." });
         }
 
         const geminiAI = new GoogleGenAI({ apiKey: API_KEY });
@@ -134,7 +182,6 @@ export default async function handler(req, res) {
         const schedule = transformFlatScheduleToNested(result.schedule, timeSlots);
         validateGeneratedSchedule(schedule);
 
-        // Retorna a grade com sucesso para o frontend.
         return res.status(200).json({ schedule });
 
     } catch (error) {
