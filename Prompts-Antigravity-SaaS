@@ -1,0 +1,535 @@
+# 🤖 PROMPTS ESTRUTURADOS PARA ANTIGRAVITY + GEMINI 3.0
+## Transformar EasySchedule em SaaS com IA
+
+---
+
+## 📌 CONTEXTO PARA O GEMINI
+
+Cole isto ANTES de cada prompt no Antigravity:
+
+```
+Você é um especialista em desenvolvimento full-stack. Estou usando Antigravity com Gemini 3.0 para criar um SaaS educacional chamado EasySchedule.
+
+TECNOLOGIAS:
+- Frontend: React + TypeScript
+- Backend: Node.js + Express
+- Database: PostgreSQL
+- Autenticação: Auth0 ou Supabase Auth
+- Pagamento: Stripe API
+- Email: SendGrid API
+
+ARQUITETURA:
+- Multi-tenancy (cada colégio tem seus dados isolados)
+- JWT com tenant_id nos claims
+- Row-level isolation no banco
+- Suporte a 3 roles: admin, coordenador, professor
+
+OBJETIVO: MVP SaaS pronto para closed beta em 4 semanas, focado em colégios.
+
+Gere código production-ready com:
+✓ Tratamento de erros
+✓ Validação de inputs
+✓ Security (CORS, rate limiting, SQL injection prevention)
+✓ Testes básicos (se aplicável)
+✓ Comentários explicativos
+
+Estruture o código em componentes/modules reutilizáveis.
+```
+
+---
+
+## 🎯 FASE 1: AUTENTICAÇÃO + MULTI-TENANCY (Semana 1)
+
+### PROMPT 1: Setup Auth0 Integration
+
+```
+Crie um módulo de autenticação com Auth0 para uma aplicação React + Express.
+
+REQUISITOS:
+1. Frontend (React):
+   - Hook useAuth() que retorna: { user, isLoading, login(), logout(), isAuthenticated }
+   - Página de login com redirect de callback
+   - Proteção de rotas (PrivateRoute component)
+   - Armazenar Access Token + Refresh Token
+   - Interceptador Axios que adiciona Authorization header
+
+2. Backend (Express):
+   - Middleware auth.js que valida JWT
+   - Extrair tenant_id do token (custom claim no Auth0)
+   - Endpoint POST /auth/callback que cria usuário no BD se não existir
+   - Endpoint POST /auth/logout
+   - Validação de token expirado com refresh
+
+3. Auth0 Config:
+   - Custom claim "tenant_id" (namespace: https://easyschedule.com/tenant_id)
+   - Rules do Auth0 que adicionam tenant_id ao token
+
+Gere código completo, pronto para usar.
+```
+
+### PROMPT 2: Multi-Tenancy Database Schema
+
+```
+Crie schema PostgreSQL para multi-tenancy com isolamento total de dados.
+
+REQUISITOS:
+1. Tabelas:
+   - organizations (colégios)
+   - users
+   - organization_members (relação many-to-many com roles)
+   - schedules (grades horárias)
+   - invoices (faturas)
+   - audit_logs (conformidade)
+
+2. Segurança:
+   - Foreign key references com ON DELETE CASCADE
+   - RLS (Row Level Security) policies
+   - Índices em tenant_id para performance
+   - Constraints de unicidade apropriados
+
+3. Campos importantes:
+   - organizations: name, slug, stripe_customer_id, plan_id, plan_active_until, timezone, created_at
+   - users: email, name, auth0_id, email_verified, created_at
+   - organization_members: role ENUM (admin, coordenador, professor)
+   - schedules: organization_id, status, created_by, generated_at
+   - invoices: stripe_invoice_id, amount_cents, status, paid_at
+
+Gere migrations do Knex.js ou SQL puro com comentários explicando cada tabela.
+```
+
+### PROMPT 3: Middleware de Isolamento de Tenant
+
+```
+Crie middleware Express que garante isolamento total de tenant em cada requisição.
+
+REQUISITOS:
+1. Middleware (tenantMiddleware.js):
+   - Extrair tenant_id do JWT
+   - Validar que tenant_id existe e é válido
+   - Adicionar tenant_id ao objeto request (req.tenant)
+   - Bloquear requests sem tenant_id válido (403)
+   - Rate limiting por tenant (100 requests/minuto)
+
+2. Query Helper:
+   - Função withTenant(query) que auto-adiciona WHERE organization_id = tenant_id
+   - Prevenir SQL injection
+   - Exemplo: withTenant(db('schedules')) retorna query segura
+
+3. Error Handling:
+   - TenantNotFoundError (404)
+   - UnauthorizedTenantError (403)
+   - Logger estruturado com tenant_id
+
+Gere middleware completo com tratamento de edge cases.
+```
+
+---
+
+## 💳 FASE 2: SISTEMA DE PAGAMENTO STRIPE (Semana 1-2)
+
+### PROMPT 4: Integração Stripe - Backend
+
+```
+Crie backend endpoints para Stripe integration com webhook handling.
+
+REQUISITOS:
+1. Endpoints:
+   - POST /billing/plans (retorna planos: freemium, pro, enterprise)
+   - POST /billing/checkout-session (cria sessão Stripe Checkout)
+   - POST /billing/webhook (processa eventos Stripe)
+   - GET /billing/invoices (lista faturas do tenant)
+   - POST /billing/cancel-subscription (cancelar plano)
+
+2. Webhook Events a Processar:
+   - customer.subscription.created → Ativar plano no BD
+   - customer.subscription.updated → Ajustar limites
+   - invoice.payment_succeeded → Registrar pagamento
+   - invoice.payment_failed → Avisar via email
+   - customer.subscription.deleted → Downgrade automático
+
+3. Database Operations:
+   - Salvar stripe_customer_id na organization
+   - Registrar invoice em invoices table
+   - Atualizar plan_id e plan_active_until
+   - Log em audit_logs
+
+4. Segurança:
+   - Validar webhook signature do Stripe
+   - Processar webhook idempotente (evitar duplicação)
+   - Encriptar dados sensíveis
+
+Gere código production-ready com tratamento de erros robusto.
+```
+
+### PROMPT 5: Integração Stripe - Frontend
+
+```
+Crie componentes React para checkout e gerenciamento de billing.
+
+REQUISITOS:
+1. Página de Planos (/pricing):
+   - Card component para cada plano (Freemium, Pro, Enterprise)
+   - Descrição de features por plano
+   - Botão "Escolher Plano" com handler
+   - Redirecionar para Stripe Checkout via API
+
+2. Dashboard Billing (/account/billing):
+   - Exibir plano atual ativo
+   - Status: "Ativo até [data]"
+   - Botão "Upgrade" ou "Downgrade"
+   - Lista de faturas com links para download PDF
+   - Botão "Cancelar Assinatura" com confirmação
+
+3. Upgrade Modal:
+   - Mostrar quando user atinge limite (ex: 2ª grade no Freemium)
+   - CTA claro: "Upgrade para Pro"
+   - Link para pricing page
+
+4. Estados de Carregamento:
+   - Loading na criação de checkout
+   - Success message após pagamento
+   - Error handling com notificação
+
+Gere componentes com Tailwind CSS, reutilizáveis e acessíveis.
+```
+
+### PROMPT 6: Email Transacionais com SendGrid
+
+```
+Crie sistema de email templates com SendGrid API.
+
+REQUISITOS:
+1. Email Templates (criar no SendGrid antes):
+   - welcome.html (bem-vindo após verificar email)
+   - verify-email.html (link de verificação)
+   - password-reset.html (link para resetar senha)
+   - payment-confirmed.html (confirmação de pagamento)
+   - invoice.html (recibo com link para PDF)
+   - new-schedule-ready.html (grade foi gerada)
+   - trial-ending-soon.html (aviso 3 dias antes de expirar)
+
+2. Service (emailService.js):
+   - sendWelcomeEmail(user, organization)
+   - sendVerificationEmail(email, token)
+   - sendPasswordResetEmail(email, token)
+   - sendPaymentConfirmed(organization, invoice)
+   - sendScheduleReady(organization, schedule)
+   - sendTrialEndingAlert(organization)
+
+3. Funcionalidades:
+   - Variáveis de template ({{user_name}}, {{org_name}}, etc)
+   - Links com tracking
+   - Retry automático se falhar
+   - Log em DB cada envio (para compliance)
+   - Unsubscribe link
+
+4. Integração:
+   - Chamar emailService após eventos de sucesso (pagamento, grade gerada, etc)
+   - Async/await para não bloquear requisição
+   - Fila de emails (Bull queue) se volume crescer
+
+Gere código que se integra com Stripe webhook e endpoints críticos.
+```
+
+---
+
+## 📊 FASE 3: DASHBOARD + GESTÃO DE USUÁRIOS (Semana 2)
+
+### PROMPT 7: Dashboard Admin Básico
+
+```
+Crie dashboard admin para gerenciar organização e subscriptions.
+
+REQUISITOS:
+1. Layout:
+   - Sidebar com navegação (Home, Grades, Usuários, Billing, Settings)
+   - Header com user dropdown + notificações
+   - Cards informativos: Plano atual, Status, Limite de grades
+
+2. Home Dashboard:
+   - Card "Plano Ativo": nome, data de expiração, botão upgrade
+   - Card "Uso": X grades criadas de Y permitidas
+   - Card "Últimas Faturas": lista com status (pago, pendente, vencido)
+   - Link rápido "Gerar Nova Grade"
+   - Aviso se trial está acabando (em vermelho)
+
+3. Página /account/settings:
+   - Editar nome da organização
+   - Upload logo
+   - Timezone selector
+   - CNPJ (opcional)
+   - Botão "Excluir Organização" com confirmação dupla
+
+4. Página /account/users:
+   - Lista de membros com role
+   - Botão "+ Convidar Usuário" (email input)
+   - Tabela: Nome | Email | Role | Ações (editar, remover)
+   - Modal para editar role (admin/coordenador/professor)
+   - Confirmação antes de remover user
+
+5. Responsivo:
+   - Mobile-first design
+   - Sidebar colapsável em mobile
+
+Gere com React Components, TypeScript, Tailwind CSS.
+```
+
+### PROMPT 8: Sistema de Convites de Usuários
+
+```
+Crie fluxo de convite e onboarding de usuários para organização.
+
+REQUISITOS:
+1. Fluxo:
+   - Admin clica "Convidar Usuário"
+   - Input de email + seleção de role
+   - Sistema gera link único de convite válido 7 dias
+   - Email enviado com link: /invite?token=xyz
+   - Convidado clica → Cria conta ou faz login se existir
+   - Auto-adiciona à organização com role especificada
+
+2. Backend:
+   - Tabela invitations (email, token, role, organization_id, created_at, expires_at, accepted_at)
+   - Endpoint POST /organizations/:id/invite
+   - Endpoint GET /invitations/:token (validar token)
+   - Endpoint POST /invitations/:token/accept (aceitar convite)
+   - Endpoint DELETE /invitations/:id (revogar)
+
+3. Security:
+   - Token é UUID único, criptografado no BD
+   - Validar se token expirou
+   - Validar se email já existe na organização
+   - Rate limiting em invites (max 50/dia por org)
+
+4. Email:
+   - Template invite.html com botão "Aceitar Convite"
+   - Link de convite direto no email
+
+Gere código completo com testes.
+```
+
+---
+
+## 📋 FASE 4: GERADOR DE GRADES (UPGRADE) (Semana 2-3)
+
+### PROMPT 9: API de Geração de Grades com IA
+
+```
+Crie endpoints para gerar grades horárias usando algoritmo de satisfação de restrições.
+
+REQUISITOS:
+1. Endpoint POST /schedules/generate:
+   Input:
+   {
+     "name": "1º Semestre 2025",
+     "periods": 6,  // quantos períodos por dia
+     "days": ["seg", "ter", "qua", "qui", "sex"],
+     "teachers": [{ id, name, disponibility: [[seg, per1], [seg, per2], ...] }],
+     "classes": [{ id, year, name, subjects: [{ name, teacher_id, hours_per_week }] }],
+     "classrooms": [{ id, name, capacity }],
+     "preferences": { min_gaps: true, group_labs: true }
+   }
+
+2. Processamento:
+   - Validar inputs (nenhuma classe sem professor, etc)
+   - Usar constraint satisfaction algorithm (simulated annealing ou genetic algorithm)
+   - Respeitar restrições: professor não em 2 lugares, gap mínimo, etc
+   - Gerar múltiplas soluções (top 3 melhores)
+   - Calcular score de qualidade (0-100)
+
+3. Output:
+   {
+     "solutions": [
+       {
+         "score": 95,
+         "schedule": [
+           { day: "seg", period: 1, class_id: "1A", subject: "português", teacher_id: "t1", classroom_id: "101" },
+           ...
+         ]
+       }
+     ],
+     "generation_time": 2.5  // segundos
+   }
+
+4. Database:
+   - Salvar schedule com status "draft"
+   - Salvar cada solução (schedule_solutions table)
+   - User pode escolher qual solução, salvando como "published"
+
+5. Performance:
+   - Gerar em < 30s para grades típicas
+   - Se demorar > 30s, retornar solução parcial + aviso
+
+Gere algoritmo com explicações de como funciona.
+```
+
+### PROMPT 10: Exportar Grade em PDF/Excel/ICS
+
+```
+Crie endpoints para exportar grades em múltiplos formatos.
+
+REQUISITOS:
+1. Endpoint GET /schedules/:id/export?format=pdf|excel|ics
+
+2. Formato PDF:
+   - Usar library: PDFKit ou pdfmake
+   - Tabela horária com professores, turmas, salas
+   - Cor por classe (automaticamente)
+   - Header com nome da escola + período
+   - Rodapé com data de geração
+   - Pronto para imprimir A3/A4
+
+3. Formato Excel:
+   - Usar library: ExcelJS
+   - Sheet por turma
+   - Cada célula: disciplina | professor
+   - Formatação com cores
+   - Baixar como .xlsx
+
+4. Formato ICS (iCalendar):
+   - Usar library: ics.js
+   - Cada aula como evento
+   - Importável em Google Calendar, Outlook
+   - Recorrência: segunda-feira às 07:00 (exemplo)
+   - Descrição: turma, professor, sala
+
+5. Email com Anexo:
+   - Após gerar grade, enviar PDF por email ao coordenador
+   - File armazenado em AWS S3 (opcional) ou endpoint de download
+
+Gere código com tratamento de erros e compression de files.
+```
+
+---
+
+## 🔐 FASE 5: SEGURANÇA + DEPLOYMENT (Semana 3-4)
+
+### PROMPT 11: Security Hardening
+
+```
+Crie checklist de segurança e implemente proteções essenciais.
+
+REQUISITOS:
+1. CORS:
+   - Apenas domínios confiáveis (app.easyschedule.com, localhost:3000)
+   - Permitir credenciais (credentials: true)
+
+2. Rate Limiting:
+   - 100 requests/minuto por IP
+   - 50 requests/minuto para login
+   - 10 generate-schedule/minuto por tenant
+
+3. Helmet.js:
+   - Adicionar headers de segurança (CSP, X-Frame-Options, etc)
+   - Proteger contra clickjacking, XSS
+
+4. Input Validation:
+   - Usar Joi ou Zod para validar todas as inputs
+   - Sanitizar strings (escape HTML)
+   - Validar email, URLs, etc
+
+5. SQL Injection Prevention:
+   - Usar prepared statements em todas queries
+   - Nunca concatenar strings em SQL
+
+6. Database Backups:
+   - Setup backup automático diário
+   - Teste restore de backup
+
+7. Secrets Management:
+   - Nunca commitar .env no git
+   - Usar environment variables
+
+Gere middleware de segurança que pode ser plugado em Express.
+```
+
+### PROMPT 12: Setup Vercel (Frontend) + Railway (Backend)
+
+```
+Crie guia de deploy automático para Vercel + Railway.
+
+REQUISITOS:
+1. Vercel Setup (Frontend React):
+   - Conectar repo GitHub
+   - Variáveis de ambiente: REACT_APP_AUTH0_DOMAIN, REACT_APP_API_URL, etc
+   - Deploy automático em cada push para main
+   - Preview deploys para PRs
+   - Custom domain: app.easyschedule.com
+
+2. Railway Setup (Backend Node.js):
+   - Conectar repo GitHub
+   - Variáveis de ambiente: DATABASE_URL, STRIPE_SECRET_KEY, etc
+   - Build command: npm ci && npm run build
+   - Start command: npm start
+   - Deploy automático em cada push
+   - Custom domain: api.easyschedule.com
+
+3. Database (PostgreSQL na Railway):
+   - Criar banco PostgreSQL
+   - Backup automático habilitado
+   - Connection pool setup
+
+4. Monitoramento:
+   - Sentry para error tracking
+   - Logs estruturados com Winston
+   - Alertas via email/Slack
+
+Gere documentação passo-a-passo com screenshots.
+```
+
+---
+
+## ✅ ORDEM DE EXECUÇÃO (4 SEMANAS)
+
+### Semana 1
+- ✅ Prompt 1: Auth0 integration
+- ✅ Prompt 2: Database schema
+- ✅ Prompt 3: Tenant middleware
+- ✅ Prompt 4: Stripe backend
+- ✅ Teste local: criar conta → fazer login → ver dashboard
+
+### Semana 2
+- ✅ Prompt 5: Stripe frontend
+- ✅ Prompt 6: SendGrid emails
+- ✅ Prompt 7: Dashboard admin
+- ✅ Prompt 8: Convite de usuários
+- ✅ Teste local: upgrade freemium → pro, receber email
+
+### Semana 3
+- ✅ Prompt 9: Algoritmo de geração de grades
+- ✅ Prompt 10: Export PDF/Excel/ICS
+- ✅ Teste local: gerar grade → exportar → receber email com anexo
+
+### Semana 4
+- ✅ Prompt 11: Security hardening
+- ✅ Prompt 12: Deploy Vercel + Railway
+- ✅ Teste em staging com 3 colégios piloto
+- ✅ Ajustes finais baseado em feedback
+- ✅ Launch beta privado
+
+---
+
+## 🎓 DICAS PARA USAR ANTIGRAVITY EFICIENTEMENTE
+
+1. **Cole o contexto UMA VEZ** no início de cada sessão
+2. **Use um prompt por feature** (não pedir tudo junto)
+3. **Peça para gerar com testes**: "Inclua testes unitários com Jest"
+4. **Peça código em arquivos separados**: "Separe em /controllers, /services, /middlewares"
+5. **Revise o código gerado** antes de commitar (IA às vezes gera lógica redundante)
+6. **Teste incrementalmente** depois de cada prompt
+7. **Documente o que funcionou** para referência futura
+8. **Se algo não funcionar**, seja específico no feedback: "Erro: TypeError no line X porque Y"
+
+---
+
+## 📞 PRÓXIMO PASSO
+
+1. Copie o **Contexto** lá em cima
+2. Vá ao Antigravity
+3. Cole contexto + **Prompt 1 (Auth0)**
+4. Deixe o Gemini gerar
+5. Revise o código
+6. Teste localmente
+7. Próximo prompt!
+
+Boa sorte! 🚀

@@ -155,7 +155,7 @@ export default async function handler(req, res) {
 
         const geminiAI = new GoogleGenAI({ apiKey: API_KEY });
         const response = await geminiAI.models.generateContent({
-            model: "gemini-2.5-pro",
+            model: "gemini-1.5-pro",
             contents: prompt,
             config: {
                 responseMimeType: "application/json",

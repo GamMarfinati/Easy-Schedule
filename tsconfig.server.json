@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "outDir": "dist-server",
+    "target": "es2020",
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "moduleResolution": "node",
+    "esModuleInterop": true
+  },
+  "include": ["server.ts", "server/**/*", "knexfile.ts", "migrations/**/*"],
+  "exclude": ["src", "node_modules", "**/*.test.ts"]
+}

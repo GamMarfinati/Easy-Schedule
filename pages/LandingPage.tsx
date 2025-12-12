@@ -1,0 +1,190 @@
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../src/context/AuthContext';
+
+const LandingPage: React.FC = () => {
+  const { isAuthenticated, login, logout, user } = useAuth();
+
+  return (
+    <div className="min-h-screen bg-white font-sans text-gray-900">
+      {/* Header */}
+      <header className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-gray-100">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-primary p-2 rounded-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <h1 className="text-xl font-bold text-gray-800 tracking-tight">EasySchedule</h1>
+          </div>
+
+          <nav className="hidden md:flex items-center gap-8">
+            <a href="#features" className="text-gray-600 hover:text-primary font-medium transition">Recursos</a>
+            <a href="#pricing" className="text-gray-600 hover:text-primary font-medium transition">Preços</a>
+            <a href="#testimonials" className="text-gray-600 hover:text-primary font-medium transition">Depoimentos</a>
+          </nav>
+
+          <div className="flex items-center gap-4">
+            {!isAuthenticated ? (
+              <>
+                <button onClick={() => login()} className="text-gray-600 hover:text-primary font-semibold transition">Entrar</button>
+                <button onClick={() => login()} className="bg-primary hover:bg-blue-700 text-white px-5 py-2.5 rounded-full font-semibold transition shadow-lg shadow-blue-500/30">
+                  Começar Grátis
+                </button>
+              </>
+            ) : (
+              <div className="flex items-center gap-4">
+                <Link to="/app" className="text-gray-600 hover:text-primary font-semibold">Ir para o App</Link>
+                <div className="flex items-center gap-2">
+                  {user?.picture && <img src={user.picture} alt={user.name} className="w-8 h-8 rounded-full" />}
+                  <button onClick={() => logout()} className="text-sm text-red-600 hover:text-red-800">Sair</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Hero Section */}
+      <section className="relative pt-20 pb-32 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-blue-50 to-white -z-10"></div>
+        <div className="container mx-auto px-4 text-center">
+          <div className="inline-block mb-6 px-4 py-1.5 bg-blue-100 text-primary rounded-full text-sm font-semibold tracking-wide">
+            🚀 A revolução na gestão escolar chegou
+          </div>
+          <h1 className="text-5xl md:text-7xl font-extrabold text-gray-900 mb-8 leading-tight">
+            Crie Grades Horárias <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-600">Sem Conflitos em Segundos</span>
+          </h1>
+          <p className="text-xl text-gray-600 mb-10 max-w-2xl mx-auto leading-relaxed">
+            Nossa Inteligência Artificial analisa a disponibilidade dos professores e cria a grade perfeita para sua escola. Diga adeus às planilhas manuais.
+          </p>
+          
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+             {!isAuthenticated ? (
+                <button onClick={() => login()} className="w-full sm:w-auto bg-primary hover:bg-blue-700 text-white text-lg px-8 py-4 rounded-full font-bold transition transform hover:scale-105 shadow-xl shadow-blue-500/30">
+                  Gerar Minha Grade Agora
+                </button>
+            ) : (
+               <Link to="/app" className="w-full sm:w-auto bg-primary hover:bg-blue-700 text-white text-lg px-8 py-4 rounded-full font-bold transition transform hover:scale-105 shadow-xl shadow-blue-500/30">
+                  Acessar Painel
+               </Link>
+            )}
+            <a href="#features" className="w-full sm:w-auto bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 text-lg px-8 py-4 rounded-full font-bold transition flex items-center justify-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              Ver Demonstração
+            </a>
+          </div>
+
+          {/* Hero Image / Mockup */}
+          <div className="mt-20 relative mx-auto max-w-5xl">
+             <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl blur opacity-20"></div>
+             <div className="relative bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200">
+                {/* Placeholder Image - replaced with a better gradient/text if no image available, but keeping placeholder for now */}
+                <div className="aspect-w-16 aspect-h-9 bg-gray-100 flex items-center justify-center">
+                    <img src="https://placehold.co/1200x800/f3f4f6/1e40af?text=Interface+do+EasySchedule" alt="App Interface" className="w-full h-auto" />
+                </div>
+             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section id="features" className="py-24 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Por que escolher o EasySchedule?</h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">Ferramentas poderosas para simplificar a rotina da coordenação pedagógica.</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-12">
+            {/* Feature 1 */}
+            <div className="p-8 rounded-2xl bg-gray-50 hover:bg-blue-50 transition duration-300 border border-gray-100">
+              <div className="w-14 h-14 bg-blue-100 text-primary rounded-xl flex items-center justify-center mb-6">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">Inteligência Artificial</h3>
+              <p className="text-gray-600 leading-relaxed">
+                Nosso algoritmo avançado analisa milhares de combinações em segundos para encontrar a grade ideal, respeitando todas as restrições.
+              </p>
+            </div>
+
+            {/* Feature 2 */}
+            <div className="p-8 rounded-2xl bg-gray-50 hover:bg-purple-50 transition duration-300 border border-gray-100">
+              <div className="w-14 h-14 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center mb-6">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">Zero Conflitos</h3>
+              <p className="text-gray-600 leading-relaxed">
+                Garantimos que nenhum professor tenha duas aulas ao mesmo tempo e que nenhuma turma fique sem professor.
+              </p>
+            </div>
+
+            {/* Feature 3 */}
+            <div className="p-8 rounded-2xl bg-gray-50 hover:bg-green-50 transition duration-300 border border-gray-100">
+              <div className="w-14 h-14 bg-green-100 text-green-600 rounded-xl flex items-center justify-center mb-6">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">Exportação Simples</h3>
+              <p className="text-gray-600 leading-relaxed">
+                Exporte a grade pronta para PDF ou Excel e compartilhe facilmente com professores e alunos.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section id="pricing" className="py-24 bg-gray-50">
+         <div className="container mx-auto px-4 text-center">
+            <h2 className="text-3xl font-bold mb-8">Planos e Preços</h2>
+            <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+                Escolha o plano ideal para sua escola. Comece gratuitamente e faça upgrade quando precisar.
+            </p>
+            <Link to="/pricing" className="bg-primary text-white px-8 py-3 rounded-full font-bold hover:bg-blue-700 transition shadow-lg">
+               Ver Tabela Completa
+            </Link>
+         </div>
+      </section>
+
+      {/* Testimonials Section */}
+      <section id="testimonials" className="py-24 bg-white">
+         <div className="container mx-auto px-4 text-center">
+            <h2 className="text-3xl font-bold mb-12">O que dizem nossos clientes</h2>
+            <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                <div className="p-6 bg-gray-50 rounded-xl shadow-sm">
+                    <p className="text-gray-600 italic mb-4">"O EasySchedule salvou minha vida! Antes eu levava semanas para montar a grade, agora faço em minutos."</p>
+                    <p className="font-bold text-gray-900">- Maria Silva, Diretora Escolar</p>
+                </div>
+                <div className="p-6 bg-gray-50 rounded-xl shadow-sm">
+                    <p className="text-gray-600 italic mb-4">"A melhor ferramenta que já usamos. Os professores adoraram a transparência e a falta de conflitos."</p>
+                    <p className="font-bold text-gray-900">- João Santos, Coordenador Pedagógico</p>
+                </div>
+            </div>
+         </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-white py-12">
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col md:flex-row justify-between items-center">
+            <div className="flex items-center gap-2 mb-4 md:mb-0">
+              <div className="bg-primary p-1.5 rounded-lg">
+                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <span className="text-xl font-bold">EasySchedule</span>
+            </div>
+            <div className="text-gray-400 text-sm">
+              © 2025 EasySchedule. Todos os direitos reservados.
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+};
+
+export default LandingPage;

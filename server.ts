@@ -1,15 +1,37 @@
+import 'dotenv/config'; // Must be first
 import express from 'express';
+import path from 'path';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import generateHandler from './api/generate';
+import authRoutes from './server/routes/auth';
+import billingRoutes from './server/routes/billing';
+import organizationRoutes from './server/routes/organization';
+import { tenantMiddleware } from './server/middleware/tenant';
 
-dotenv.config();
+import helmet from 'helmet';
+import { validate } from './server/middleware/validation';
+import { ScheduleInputSchema } from './server/schemas/scheduleSchema';
+
 
 const app = express();
-const PORT = 3002;
+const PORT = process.env.PORT || 3002;
 
-app.use(cors());
-app.use(express.json());
+// Security Headers
+app.use(helmet());
+
+// CORS Configuration
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+}));
+
+// Webhook route needs raw body for signature verification
+// We must define this BEFORE express.json()
+app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
+
+app.use(express.json({ limit: '1mb' })); // Limit body size
 
 // Wrapper to adapt Vercel handler to Express
 const adapter = (handler: any) => async (req: any, res: any) => {
@@ -34,7 +56,52 @@ const adapter = (handler: any) => async (req: any, res: any) => {
     await handler(req, resProxy);
 };
 
-app.post('/api/generate', adapter(generateHandler));
+import { checkJwt, extractTenant } from './server/middleware/auth';
+
+app.use('/auth', authRoutes);
+
+// Billing routes (handles its own auth mixed with public webhook)
+app.use('/api/billing', billingRoutes);
+
+import { publicInvitationRouter, protectedInvitationRouter } from './server/routes/invitations';
+
+// Public routes
+app.use('/api/invitations', publicInvitationRouter);
+
+// Protected API Router
+const protectedRouter = express.Router();
+protectedRouter.use(checkJwt);
+protectedRouter.use(extractTenant);
+
+// Organization routes
+protectedRouter.use('/organization', organizationRoutes);
+protectedRouter.use('/organization', protectedInvitationRouter);
+
+// Protect all API routes with tenant isolation and rate limiting
+import { generateSchedule } from './server/controllers/scheduleController';
+import { exportSchedule } from './server/controllers/exportController';
+
+const apiRoutes = express.Router();
+apiRoutes.use(tenantMiddleware);
+apiRoutes.post('/schedules/generate', validate(ScheduleInputSchema), generateSchedule);
+apiRoutes.get('/schedules/:id/export', exportSchedule);
+apiRoutes.post('/generate', adapter(generateHandler));
+
+protectedRouter.use(apiRoutes);
+
+app.use('/api', protectedRouter);
+
+// Serve Static Files (Frontend)
+// This must be after API routes to ensure API takes precedence
+if (process.env.NODE_ENV === 'production' || process.env.VITE_App_ENV === 'production') {
+  const distPath = path.join(__dirname, '../dist');
+  app.use(express.static(distPath));
+
+  // Catch-all route for SPA
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
 
 app.listen(PORT, () => {
     console.log(`Backend server running on http://localhost:${PORT}`);

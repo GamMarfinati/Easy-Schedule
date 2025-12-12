@@ -16,7 +16,7 @@ const LoadingState: React.FC = () => (
         <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-primary"></div>
         <h3 className="mt-6 text-xl font-semibold text-gray-700">A IA está pensando...</h3>
         <p className="mt-2 text-gray-500 max-w-sm">
-            Estamos organizando os horários, verificando conflitos e montando a grade perfeita. Este processo pode levar um momento.
+            Estamos organizando os horários, verificando conflitos e montando o quadro perfeito. Este processo pode levar um momento.
         </p>
     </div>
 );
@@ -26,8 +26,8 @@ const EmptyState: React.FC = () => (
         <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
-        <h3 className="mt-4 text-xl font-semibold text-gray-700">Sua grade horária aparecerá aqui</h3>
-        <p className="mt-1 text-gray-500">Adicione professores e clique em "Gerar Grade Horária" para começar.</p>
+        <h3 className="mt-4 text-xl font-semibold text-gray-700">Seu quadro de horários aparecerá aqui</h3>
+        <p className="mt-1 text-gray-500">Adicione professores e clique em "Gerar Quadro" para começar.</p>
     </div>
 );
 
@@ -121,7 +121,7 @@ const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, isLoading, 
     <div className="overflow-x-auto bg-white p-4 sm:p-6 rounded-2xl shadow-lg">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <div>
-                 <h3 className="text-2xl font-bold text-gray-800 text-center sm:text-left">Grade Horária Gerada</h3>
+                 <h3 className="text-2xl font-bold text-gray-800 text-center sm:text-left">Quadro de Horários Gerado</h3>
                  <div className="mt-2 flex items-center space-x-1 bg-gray-100 p-1 rounded-lg self-center">
                     {(['geral', 'turma', 'professor'] as DisplayMode[]).map(mode => (
                          <button 
