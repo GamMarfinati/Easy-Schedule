@@ -103,7 +103,8 @@ if (process.env.NODE_ENV === 'production' || process.env.VITE_App_ENV === 'produ
   app.use(express.static(distPath));
 
   // Catch-all route for SPA
-  app.get('*', (req, res) => {
+  // Express 5 requires (.*) instead of * for wildcard matching
+  app.get(['/', '/(.*)'], (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
