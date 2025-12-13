@@ -12,7 +12,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
 });
 
 export const createCheckoutSession = async (priceId: string, tenantId: string, customerId?: string) => {
-  const session = await stripe.checkout.sessions.create({
+  // Construir objeto da sessão condicionalmente
+  const sessionParams: Stripe.Checkout.SessionCreateParams = {
     mode: 'subscription',
     payment_method_types: ['card'],
     line_items: [
@@ -21,7 +22,6 @@ export const createCheckoutSession = async (priceId: string, tenantId: string, c
         quantity: 1,
       },
     ],
-    customer: customerId, // If we already have a customer ID for this tenant
     client_reference_id: tenantId, // Pass tenantId to webhook
     subscription_data: {
       metadata: {
@@ -30,7 +30,14 @@ export const createCheckoutSession = async (priceId: string, tenantId: string, c
     },
     success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/app/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/app/billing?canceled=true`,
-  });
+  };
+
+  // Só adicionar customer se existir e não for string vazia
+  if (customerId && customerId.trim() !== '') {
+    sessionParams.customer = customerId;
+  }
+
+  const session = await stripe.checkout.sessions.create(sessionParams);
 
   return session;
 };
