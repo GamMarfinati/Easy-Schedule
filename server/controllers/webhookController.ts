@@ -106,13 +106,91 @@ export const handleWebhook = async (req: Request, res: Response) => {
               plan_active_until: null,
               updated_at: new Date()
             });
-          console.log(`Subscription deleted/canceled for org ${org.id}`);
+          console.log(`✅ Subscription deleted/canceled for org ${org.id}`);
+          
+          // Log para auditoria
+          await db('audit_logs').insert({
+            organization_id: org.id,
+            action: 'subscription_canceled',
+            details: JSON.stringify({ 
+              subscription_id: subscription.id,
+              canceled_at: new Date().toISOString()
+            })
+          });
+        }
+        break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId = invoice.customer as string;
+        
+        const org = await db('organizations').where({ stripe_customer_id: customerId }).first();
+        
+        if (org) {
+          // Atualizar status para past_due
+          await db('organizations')
+            .where({ id: org.id })
+            .update({
+              subscription_status: 'past_due',
+              updated_at: new Date()
+            });
+          
+          console.log(`⚠️ Payment failed for org ${org.id}`);
+          
+          // Log para auditoria
+          await db('audit_logs').insert({
+            organization_id: org.id,
+            action: 'payment_failed',
+            details: JSON.stringify({ 
+              invoice_id: invoice.id,
+              amount_cents: invoice.amount_due,
+              attempt_count: invoice.attempt_count,
+              next_attempt: invoice.next_payment_attempt 
+                ? new Date(invoice.next_payment_attempt * 1000).toISOString() 
+                : null
+            })
+          });
+
+          // Enviar email de alerta (se tiver email)
+          const customerEmail = invoice.customer_email;
+          if (customerEmail && emailService.sendPaymentFailed) {
+            await emailService.sendPaymentFailed(org, { 
+              amount_cents: invoice.amount_due,
+              retry_date: invoice.next_payment_attempt 
+                ? new Date(invoice.next_payment_attempt * 1000)
+                : undefined
+            }, customerEmail);
+          }
+        }
+        break;
+      }
+
+      case 'customer.subscription.trial_will_end': {
+        const subscription = event.data.object as Stripe.Subscription;
+        const customerId = subscription.customer as string;
+        
+        const org = await db('organizations').where({ stripe_customer_id: customerId }).first();
+        
+        if (org) {
+          console.log(`📧 Trial ending soon for org ${org.id}`);
+          
+          // Buscar email do admin
+          const admin = await db('users')
+            .where({ organization_id: org.id, role: 'admin' })
+            .first();
+          
+          if (admin?.email && emailService.sendTrialEndingReminder) {
+            await emailService.sendTrialEndingReminder(org, {
+              trial_end: new Date((subscription as any).trial_end * 1000)
+            }, admin.email);
+          }
         }
         break;
       }
 
       default:
-        console.log(`Unhandled event type ${event.type}`);
+        console.log(`ℹ️ Unhandled event type: ${event.type}`);
     }
 
     // Return a 200 response to acknowledge receipt of the event

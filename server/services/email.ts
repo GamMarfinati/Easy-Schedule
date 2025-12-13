@@ -43,6 +43,7 @@ const sendEmail = async ({ to, templateId, dynamicTemplateData }: EmailData) => 
 const TEMPLATES = {
   WELCOME: process.env.SENDGRID_TEMPLATE_WELCOME || 'd-placeholder_welcome_id',
   PAYMENT_CONFIRMED: process.env.SENDGRID_TEMPLATE_PAYMENT || 'd-placeholder_payment_id',
+  PAYMENT_FAILED: process.env.SENDGRID_TEMPLATE_PAYMENT_FAILED || 'd-placeholder_payment_failed_id',
   SCHEDULE_READY: process.env.SENDGRID_TEMPLATE_SCHEDULE || 'd-placeholder_schedule_id',
   TRIAL_ENDING: process.env.SENDGRID_TEMPLATE_TRIAL || 'd-placeholder_trial_id',
 };
@@ -68,6 +69,42 @@ export const emailService = {
         amount: (invoice.amount_cents / 100).toFixed(2),
         invoice_url: invoice.pdf_url,
         org_id: organization.id,
+      },
+    });
+  },
+
+  sendPaymentFailed: async (
+    organization: { id: string; name?: string }, 
+    paymentInfo: { amount_cents: number; retry_date?: Date }, 
+    userEmail: string
+  ) => {
+    await sendEmail({
+      to: userEmail,
+      templateId: TEMPLATES.PAYMENT_FAILED,
+      dynamicTemplateData: {
+        org_name: organization.name || 'Sua organização',
+        amount: (paymentInfo.amount_cents / 100).toFixed(2),
+        retry_date: paymentInfo.retry_date 
+          ? paymentInfo.retry_date.toLocaleDateString('pt-BR') 
+          : 'em breve',
+        billing_url: `${process.env.FRONTEND_URL}/app/billing`,
+      },
+    });
+  },
+
+  sendTrialEndingReminder: async (
+    organization: { id: string; name?: string }, 
+    trialInfo: { trial_end: Date }, 
+    userEmail: string
+  ) => {
+    await sendEmail({
+      to: userEmail,
+      templateId: TEMPLATES.TRIAL_ENDING,
+      dynamicTemplateData: {
+        org_name: organization.name || 'Sua organização',
+        trial_end_date: trialInfo.trial_end.toLocaleDateString('pt-BR'),
+        days_remaining: Math.ceil((trialInfo.trial_end.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+        upgrade_url: `${process.env.FRONTEND_URL}/pricing`,
       },
     });
   },
