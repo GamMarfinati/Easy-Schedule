@@ -3,22 +3,23 @@ import api from '../services/api';
 
 const SettingsPage: React.FC = () => {
   const [name, setName] = useState('');
-  const [timezone, setTimezone] = useState('UTC');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
     api.get('/organization').then(res => {
-      setName(res.data.name);
-      setTimezone(res.data.timezone);
+      setName(res.data.name || '');
+    }).catch(err => {
+      console.error('Erro ao carregar organização:', err);
     });
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setMessage('');
     try {
-      await api.put('/organization', { name, timezone });
+      await api.put('/organization', { name });
       setMessage('Configurações salvas com sucesso!');
     } catch (error) {
       setMessage('Erro ao salvar.');
@@ -47,20 +48,8 @@ const SettingsPage: React.FC = () => {
                 />
               </div>
 
-              <div className="col-span-6 sm:col-span-3">
-                <label htmlFor="timezone" className="block text-sm font-medium text-gray-700">Fuso Horário</label>
-                <select
-                  id="timezone"
-                  name="timezone"
-                  value={timezone}
-                  onChange={(e) => setTimezone(e.target.value)}
-                  className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                >
-                  <option value="UTC">UTC</option>
-                  <option value="America/Sao_Paulo">Brasília (GMT-3)</option>
-                  <option value="America/New_York">New York (EST)</option>
-                </select>
-              </div>
+              {/* Campo timezone removido - não existe no banco de dados atual */}
+              {/* TODO: Adicionar migration para incluir timezone se necessário */}
             </div>
 
             <div className="mt-6">
@@ -72,7 +61,7 @@ const SettingsPage: React.FC = () => {
                 {loading ? 'Salvando...' : 'Salvar Alterações'}
               </button>
             </div>
-            {message && <p className="mt-2 text-sm text-green-600">{message}</p>}
+            {message && <p className={`mt-2 text-sm ${message.includes('Erro') ? 'text-red-600' : 'text-green-600'}`}>{message}</p>}
           </form>
         </div>
       </div>
@@ -81,3 +70,4 @@ const SettingsPage: React.FC = () => {
 };
 
 export default SettingsPage;
+
