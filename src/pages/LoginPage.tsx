@@ -1,9 +1,7 @@
 import React from 'react';
-import { useAuth } from '../context/AuthContext';
+import { SignInButton } from "@clerk/clerk-react";
 
 const LoginPage: React.FC = () => {
-  const { login } = useAuth();
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 text-center">
@@ -15,12 +13,14 @@ const LoginPage: React.FC = () => {
             Gerencie suas grades escolares com eficiência
           </p>
         </div>
-        <button
-          onClick={login}
-          className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-        >
-          Log in with Auth0
-        </button>
+        
+        <SignInButton mode="modal" forceRedirectUrl="/app">
+          <button
+            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            Entrar com Google / Email
+          </button>
+        </SignInButton>
       </div>
     </div>
   );
