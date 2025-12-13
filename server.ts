@@ -103,8 +103,8 @@ if (process.env.NODE_ENV === 'production' || process.env.VITE_App_ENV === 'produ
   app.use(express.static(distPath));
 
   // Catch-all route for SPA
-  // Express 5 (path-to-regexp v8) requires named parameters for wildcards
-  app.get('/:slug*', (req, res) => {
+  // Express 5: Use RegExp to match everything (avoiding string path issues)
+  app.get(/.*/, (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
