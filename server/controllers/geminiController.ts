@@ -116,13 +116,12 @@ export const generateScheduleAI = async (req: Request, res: Response) => {
 
         const geminiAI = new GoogleGenAI({ apiKey: API_KEY });
         const response = await geminiAI.models.generateContent({
-            model: "gemini-1.5-pro",
+            model: "gemini-2.0-flash-lite-preview-02-05", // Using the preview version as 'lite' generic alias might not be live yet
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
                 // @ts-ignore
                 responseSchema: responseSchema,
-                thinkingConfig: { thinkingBudget: 32768 }
             }
         });
 

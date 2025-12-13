@@ -44,7 +44,8 @@ const Dashboard: React.FC = () => {
 
   // TODO: Map Auth0 user metadata for subscription status
   // const isPremium = user?.publicMetadata?.subscription === 'premium';
-  const isPremium = false; 
+  // const isPremium = user?.publicMetadata?.subscription === 'premium';
+  const isPremium = true; // Temporário para teste da IA 
   const STRIPE_LINK = "https://buy.stripe.com/test_6oU6oB94Ab8WcGZ3xL5Ne00";
 
   const addTeacher = useCallback((newTeacherData: Omit<Teacher, 'id'>) => {
