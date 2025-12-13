@@ -12,10 +12,33 @@ declare global {
   }
 }
 
+// Construir issuerBaseURL de forma robusta
+const getIssuerBaseURL = (): string => {
+  // Priorizar ISSUER_BASE_URL se existir (comum em Railway)
+  if (process.env.ISSUER_BASE_URL) {
+    return process.env.ISSUER_BASE_URL;
+  }
+  
+  let domain = process.env.AUTH0_DOMAIN || '';
+  
+  // Remover https:// se o usuário colocou a URL completa
+  domain = domain.replace(/^https?:\/\//, '');
+  // Remover trailing slash
+  domain = domain.replace(/\/$/, '');
+  
+  return `https://${domain}/`;
+};
+
+const issuerURL = getIssuerBaseURL();
+const audience = process.env.AUTH0_AUDIENCE;
+
+console.log('[Auth0 Config] Issuer:', issuerURL);
+console.log('[Auth0 Config] Audience:', audience);
+
 // Middleware to validate JWT
 export const checkJwt = auth({
-  audience: process.env.AUTH0_AUDIENCE,
-  issuerBaseURL: `https://${process.env.AUTH0_DOMAIN}/`,
+  audience: audience,
+  issuerBaseURL: issuerURL,
   tokenSigningAlg: 'RS256'
 });
 
