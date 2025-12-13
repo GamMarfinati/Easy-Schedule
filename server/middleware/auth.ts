@@ -73,7 +73,7 @@ export const extractTenant = async (req: Request, res: Response, next: NextFunct
           id: newOrgId,
           name: 'Minha Escola',
           slug: `school-${Date.now()}`,
-          plan_id: 'freemium'
+          subscription_status: 'free'  // Coluna correta conforme migration
         });
 
         // Create User
