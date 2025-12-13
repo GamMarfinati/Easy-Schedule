@@ -6,7 +6,7 @@ export const generateSchedule = async (teachers: Teacher[], timeSlots: string[])
         // O frontend agora envia os dados para a nossa própria função de backend segura.
         // A chave de API nunca é exposta ao navegador.
         // Usamos a instância 'api' para garantir que o token de autenticação seja enviado.
-        const response = await api.post('/generate', { teachers, timeSlots });
+        const response = await api.post('/schedules/generate', { teachers, timeSlots });
 
         // Se for bem-sucedida, recebemos a grade horária pronta do backend.
         // Axios retorna os dados diretamente em response.data

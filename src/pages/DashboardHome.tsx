@@ -6,7 +6,12 @@ const DashboardHome: React.FC = () => {
   const [org, setOrg] = useState<any>(null);
 
   useEffect(() => {
-    api.get('/organization').then(res => setOrg(res.data)).catch(console.error);
+    api.get('/organization')
+      .then(res => setOrg(res.data))
+      .catch(err => {
+        console.error(err);
+        setOrg({ plan_id: 'Erro ao carregar' }); // Fallback to show error
+      });
   }, []);
 
   return (

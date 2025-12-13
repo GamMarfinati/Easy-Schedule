@@ -6,7 +6,7 @@ import PricingPage from './src/pages/PricingPage';
 import BillingPage from './src/pages/BillingPage';
 import LoginPage from './src/pages/LoginPage';
 import PrivateRoute from './src/components/PrivateRoute';
-import { useAuth } from './src/context/AuthContext';
+import { useAuth } from '@clerk/clerk-react';
 import { setupInterceptors } from './src/services/api';
 
 import AppLayout from './src/components/Layout/AppLayout';
@@ -18,11 +18,15 @@ import InvitePage from './src/pages/InvitePage';
 import SchedulesPage from './src/pages/SchedulesPage';
 
 const AppContent: React.FC = () => {
-  const { getAccessToken } = useAuth();
+  const { getToken } = useAuth();
 
   useEffect(() => {
-    setupInterceptors(getAccessToken);
-  }, [getAccessToken]);
+    // Adapt Clerk's getToken to match the interceptor's expected signature
+    setupInterceptors(async () => {
+      const token = await getToken();
+      return token || '';
+    });
+  }, [getToken]);
 
   return (
     <Routes>
