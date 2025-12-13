@@ -1,12 +1,12 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "NodeNext",
     "outDir": "dist-server",
-    "target": "es2020",
+    "target": "es2022",
     "sourceMap": true,
     "skipLibCheck": true,
-    "moduleResolution": "node",
+    "moduleResolution": "NodeNext",
     "esModuleInterop": true
   },
   "include": ["server.ts", "server/**/*", "knexfile.ts", "migrations/**/*"],

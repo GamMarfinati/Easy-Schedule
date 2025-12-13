@@ -1,9 +1,9 @@
 import express from 'express';
-import db from '../db';
+import db from '../db.js';
 import crypto from 'crypto';
-import { tenantMiddleware } from '../middleware/tenant';
-import { emailService } from '../services/email';
-import { checkJwt } from '../middleware/auth';
+import { tenantMiddleware } from '../middleware/tenant.js';
+import { emailService } from '../services/email.js';
+import { checkJwt } from '../middleware/auth.js';
 
 const router = express.Router();
 

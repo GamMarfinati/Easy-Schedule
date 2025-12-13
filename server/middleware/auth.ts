@@ -19,7 +19,7 @@ export const checkJwt = auth({
   tokenSigningAlg: 'RS256'
 });
 
-import db from '../db';
+import db from '../db.js';
 
 // Middleware to extract tenant_id from token
 export const extractTenant = async (req: Request, res: Response, next: NextFunction) => {

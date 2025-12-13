@@ -1,4 +1,4 @@
-import { ScheduleInput, ScheduleSolution, Lesson, TimeSlot } from './types';
+import { ScheduleInput, ScheduleSolution, Lesson, TimeSlot } from './types.js';
 
 // Helper to check if two slots overlap (trivial here as slots are discrete)
 const isSameSlot = (a: TimeSlot, b: TimeSlot) => a.day === b.day && a.period === b.period;

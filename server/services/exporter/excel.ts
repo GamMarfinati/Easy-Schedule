@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { ScheduleSolution } from '../scheduler/types';
+import { ScheduleSolution } from '../scheduler/types.js';
 
 export const generateExcel = async (schedule: ScheduleSolution, orgName: string): Promise<Buffer> => {
   const workbook = new ExcelJS.Workbook();

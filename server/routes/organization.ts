@@ -1,6 +1,6 @@
 import express from 'express';
-import db from '../db';
-import { tenantMiddleware } from '../middleware/tenant';
+import db from '../db.js';
+import { tenantMiddleware } from '../middleware/tenant.js';
 
 const router = express.Router();
 

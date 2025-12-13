@@ -1,16 +1,21 @@
 import 'dotenv/config'; // Must be first
 import express from 'express';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 import cors from 'cors';
-import generateHandler from './api/generate';
-import authRoutes from './server/routes/auth';
-import billingRoutes from './server/routes/billing';
-import organizationRoutes from './server/routes/organization';
-import { tenantMiddleware } from './server/middleware/tenant';
+import generateHandler from './api/generate.js';
+import authRoutes from './server/routes/auth.js';
+import billingRoutes from './server/routes/billing.js';
+import organizationRoutes from './server/routes/organization.js';
+import { tenantMiddleware } from './server/middleware/tenant.js';
 
 import helmet from 'helmet';
-import { validate } from './server/middleware/validation';
-import { ScheduleInputSchema } from './server/schemas/scheduleSchema';
+import { validate } from './server/middleware/validation.js';
+import { ScheduleInputSchema } from './server/schemas/scheduleSchema.js';
 
 
 const app = express();
@@ -56,14 +61,14 @@ const adapter = (handler: any) => async (req: any, res: any) => {
     await handler(req, resProxy);
 };
 
-import { checkJwt, extractTenant } from './server/middleware/auth';
+import { checkJwt, extractTenant } from './server/middleware/auth.js';
 
 app.use('/auth', authRoutes);
 
 // Billing routes (handles its own auth mixed with public webhook)
 app.use('/api/billing', billingRoutes);
 
-import { publicInvitationRouter, protectedInvitationRouter } from './server/routes/invitations';
+import { publicInvitationRouter, protectedInvitationRouter } from './server/routes/invitations.js';
 
 // Public routes
 app.use('/api/invitations', publicInvitationRouter);
@@ -78,8 +83,8 @@ protectedRouter.use('/organization', organizationRoutes);
 protectedRouter.use('/organization', protectedInvitationRouter);
 
 // Protect all API routes with tenant isolation and rate limiting
-import { generateSchedule } from './server/controllers/scheduleController';
-import { exportSchedule } from './server/controllers/exportController';
+import { generateSchedule } from './server/controllers/scheduleController.js';
+import { exportSchedule } from './server/controllers/exportController.js';
 
 const apiRoutes = express.Router();
 apiRoutes.use(tenantMiddleware);

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
-import { GeneticScheduler } from '../services/scheduler/algorithm';
-import { ScheduleInput } from '../services/scheduler/types';
-import db from '../db';
+import { GeneticScheduler } from '../services/scheduler/algorithm.js';
+import { ScheduleInput } from '../services/scheduler/types.js';
+import db from '../db.js';
 
 export const generateSchedule = async (req: Request, res: Response) => {
   try {

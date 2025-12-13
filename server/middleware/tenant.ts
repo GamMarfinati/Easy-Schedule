@@ -20,10 +20,6 @@ class UnauthorizedTenantError extends Error {
 const tenantRateLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 100, // limit each IP to 100 requests per windowMs
-  keyGenerator: (req: Request) => {
-    // Use tenantId as key if available, otherwise fallback to IP
-    return req.tenantId || req.ip || 'unknown';
-  },
   validate: {
     ip: false,
   },

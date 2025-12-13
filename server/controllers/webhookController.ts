@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
-import stripe from '../services/stripe';
-import db from '../db';
+import stripe from '../services/stripe.js';
+import db from '../db.js';
 import Stripe from 'stripe';
-import { emailService } from '../services/email';
+import { emailService } from '../services/email.js';
 
 export const handleWebhook = async (req: Request, res: Response) => {
   const sig = req.headers['stripe-signature'];

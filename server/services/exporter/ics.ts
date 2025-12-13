@@ -1,5 +1,5 @@
 import * as ics from 'ics';
-import { ScheduleSolution } from '../scheduler/types';
+import { ScheduleSolution } from '../scheduler/types.js';
 
 export const generateICS = (schedule: ScheduleSolution, orgName: string): Promise<string> => {
   return new Promise((resolve, reject) => {

@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
-import db from '../db';
-import { generatePDF } from '../services/exporter/pdf';
-import { generateExcel } from '../services/exporter/excel';
-import { generateICS } from '../services/exporter/ics';
+import db from '../db.js';
+import { generatePDF } from '../services/exporter/pdf.js';
+import { generateExcel } from '../services/exporter/excel.js';
+import { generateICS } from '../services/exporter/ics.js';
 
 export const exportSchedule = async (req: Request, res: Response) => {
   try {

@@ -1,10 +1,10 @@
 import express from 'express';
-import { createCheckoutSession, getPortalUrl } from '../services/stripe';
-import { handleWebhook } from '../controllers/webhookController';
-import { tenantMiddleware } from '../middleware/tenant';
-import db from '../db';
+import { createCheckoutSession, getPortalUrl } from '../services/stripe.js';
+import { handleWebhook } from '../controllers/webhookController.js';
+import { tenantMiddleware } from '../middleware/tenant.js';
+import db from '../db.js';
 
-import { checkJwt, extractTenant } from '../middleware/auth';
+import { checkJwt, extractTenant } from '../middleware/auth.js';
 
 const router = express.Router();
 

@@ -1,5 +1,5 @@
 import PDFDocument from 'pdfkit';
-import { ScheduleSolution } from '../scheduler/types';
+import { ScheduleSolution } from '../scheduler/types.js';
 
 export const generatePDF = (schedule: ScheduleSolution, orgName: string): Promise<Buffer> => {
   return new Promise((resolve, reject) => {
