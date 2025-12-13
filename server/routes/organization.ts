@@ -22,16 +22,16 @@ router.get('/', async (req, res) => {
 // Update organization details
 router.put('/', async (req, res) => {
   try {
-    const { name, timezone } = req.body;
+    const { name } = req.body; // Removido timezone (não existe na tabela)
     await db('organizations')
       .where({ id: req.tenantId })
       .update({
         name,
-        timezone,
         updated_at: new Date()
       });
     res.json({ success: true });
   } catch (error) {
+    console.error('Error updating organization:', error);
     res.status(500).json({ error: 'Failed to update organization' });
   }
 });
@@ -39,18 +39,19 @@ router.put('/', async (req, res) => {
 // List organization members
 router.get('/users', async (req, res) => {
   try {
-    const users = await db('organization_members')
-      .join('users', 'organization_members.user_id', 'users.id')
-      .where('organization_members.organization_id', req.tenantId)
+    // Usando a estrutura correta: users tem organization_id direto (não organization_members)
+    const users = await db('users')
+      .where('organization_id', req.tenantId)
       .select(
-        'users.id',
-        'users.name',
-        'users.email',
-        'organization_members.role',
-        'organization_members.created_at as joined_at'
+        'id',
+        'name',
+        'email',
+        'role',
+        'created_at as joined_at'
       );
     res.json(users);
   } catch (error) {
+    console.error('Error fetching users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
