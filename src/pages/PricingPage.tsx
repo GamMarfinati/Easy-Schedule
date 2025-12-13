@@ -32,8 +32,8 @@ const PricingPage: React.FC = () => {
         // Fallback data if API fails (e.g. unauthenticated)
         setPlans([
             { id: 'freemium', name: 'Gratuito', price: 0, features: ['1 Grade/mês', 'Exportação PDF'] },
-            { id: 'pro', name: 'Escola Pro', price: 9900, priceId: 'price_1Q...', features: ['Grades Ilimitadas', 'Exportação Excel/ICS', 'Suporte Prioritário'] },
-            { id: 'enterprise', name: 'Rede de Ensino', price: 29900, priceId: 'price_1Q...', features: ['Múltiplas Unidades', 'API Access', 'SSO'] }
+            { id: 'pro', name: 'Escola Pro', price: 9900, priceId: 'price_1Se1RV9WwxV5C10jCkyBLkV0', features: ['Grades Ilimitadas', 'Exportação Excel/ICS', 'Suporte Prioritário'] },
+            { id: 'enterprise', name: 'Rede de Ensino', price: 29900, priceId: 'price_1Se1TA9WwxV5C10jxxWqmoNs', features: ['Múltiplas Unidades', 'API Access', 'SSO'] }
         ]);
       }
     };
