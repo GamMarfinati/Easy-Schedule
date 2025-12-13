@@ -22,7 +22,34 @@ const app = express();
 const PORT = process.env.PORT || 3002;
 
 // Security Headers
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'", // Necessário para hidratação do React/Vite
+          "https://static.cloudflareinsights.com", // Analytics do Cloudflare (visto nos logs)
+        ],
+        styleSrc: [
+          "'self'",
+          "'unsafe-inline'", // Necessário para estilos injetados por JS
+        ],
+        imgSrc: [
+          "'self'",
+          "data:", // Permite ícones SVG em base64 (seus ícones gigantes)
+          "https://placehold.co", // Imagens de placeholder (visto nos logs)
+        ],
+        connectSrc: [
+          "'self'",
+          "https://cloudflareinsights.com", // Para onde o analytics envia dados
+        ],
+        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"], // Comum para Google Fonts
+      },
+    },
+  })
+);
 
 // CORS Configuration
 app.use(cors({
