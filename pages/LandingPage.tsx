@@ -80,10 +80,21 @@ const LandingPage: React.FC = () => {
           {/* Hero Image / Mockup */}
           <div className="mt-20 relative mx-auto max-w-5xl">
              <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl blur opacity-20"></div>
-             <div className="relative bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200">
-                {/* Placeholder Image - replaced with a better gradient/text if no image available, but keeping placeholder for now */}
-                <div className="aspect-w-16 aspect-h-9 bg-gray-100 flex items-center justify-center">
-                    <img src="https://placehold.co/1200x800/f3f4f6/1e40af?text=Interface+do+HoraProfe" alt="App Interface" className="w-full h-auto" />
+            <div className="relative bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200 ring-1 ring-gray-900/5">
+                <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                  <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  <div className="ml-4 bg-white rounded-md px-3 py-1 text-xs text-gray-400 flex-1 text-center font-mono border border-gray-100 shadow-sm">
+                    horaprofe.com.br
+                  </div>
+                </div>
+                <div className="aspect-w-16 aspect-h-9 bg-gray-50">
+                    <img 
+                      src="/images/dashboard-mockup.png" 
+                      alt="Interface do HoraProfe - Gerador de Grades" 
+                      className="w-full h-auto object-cover" 
+                    />
                 </div>
              </div>
           </div>
@@ -102,7 +113,13 @@ const LandingPage: React.FC = () => {
             {/* Feature 1 */}
             <div className="p-8 rounded-2xl bg-gray-50 hover:bg-blue-50 transition duration-300 border border-gray-100">
               <div className="w-14 h-14 bg-blue-100 text-primary rounded-xl flex items-center justify-center mb-6">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                {/* LayoutGrid Icon */}
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect width="7" height="7" x="3" y="3" rx="1" ry="1" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                  <rect width="7" height="7" x="14" y="3" rx="1" ry="1" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                  <rect width="7" height="7" x="14" y="14" rx="1" ry="1" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                  <rect width="7" height="7" x="3" y="14" rx="1" ry="1" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                </svg>
               </div>
               <h3 className="text-2xl font-bold text-gray-900 mb-3">Inteligência Artificial</h3>
               <p className="text-gray-600 leading-relaxed">
@@ -142,7 +159,11 @@ const LandingPage: React.FC = () => {
             <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
                 Escolha o plano ideal para sua escola. Comece gratuitamente e faça upgrade quando precisar.
             </p>
-            <Link to="/pricing" className="bg-primary text-white px-8 py-3 rounded-full font-bold hover:bg-blue-700 transition shadow-lg">
+            <Link 
+              to="/pricing" 
+              onClick={() => window.scrollTo(0, 0)}
+              className="bg-primary text-white px-8 py-3 rounded-full font-bold hover:bg-blue-700 transition shadow-lg inline-block"
+            >
                Ver Tabela Completa
             </Link>
          </div>
