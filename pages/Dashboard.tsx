@@ -1,5 +1,4 @@
 import React, { useState, useCallback } from 'react';
-import { useUser } from "@clerk/clerk-react";
 import SubscriptionModal from '../components/SubscriptionModal';
 import { Teacher, Schedule } from '../types';
 import TeacherForm from '../components/TeacherForm';
@@ -9,7 +8,7 @@ import TimeSlotManager from '../components/TimeSlotManager';
 import { generateSchedule } from '../services/geminiService';
 import DataImporter from '../components/DataImporter';
 import { DEFAULT_TIME_SLOTS } from '../constants';
-import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react";
+import { useAuth } from '../src/context/AuthContext';
 import { Link, useLocation } from 'react-router-dom';
 
 interface ScheduleError {
@@ -40,10 +39,12 @@ const Dashboard: React.FC = () => {
   const [timeSlots, setTimeSlots] = useState<string[]>(DEFAULT_TIME_SLOTS);
   const [permissionErrorLink, setPermissionErrorLink] = useState<string | null>(null);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
-  const { user } = useUser();
+  const { user, login, logout, isAuthenticated } = useAuth();
   const location = useLocation();
 
-  const isPremium = user?.publicMetadata?.subscription === 'premium';
+  // TODO: Map Auth0 user metadata for subscription status
+  // const isPremium = user?.publicMetadata?.subscription === 'premium';
+  const isPremium = false; 
   const STRIPE_LINK = "https://buy.stripe.com/test_6oU6oB94Ab8WcGZ3xL5Ne00";
 
   const addTeacher = useCallback((newTeacherData: Omit<Teacher, 'id'>) => {
@@ -212,13 +213,26 @@ const Dashboard: React.FC = () => {
         </nav>
 
         <div className="p-4 border-t border-gray-100">
+        <div className="p-4 border-t border-gray-100">
           <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-50">
-            <UserButton />
+            {user?.picture ? (
+                 <img src={user.picture} alt={user.name} className="w-8 h-8 rounded-full" />
+            ) : (
+                 <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold">
+                    {user?.name?.charAt(0) || 'U'}
+                 </div>
+            )}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{user?.fullName || 'Usuário'}</p>
-              <p className="text-xs text-gray-500 truncate">{isPremium ? 'Plano Premium 💎' : 'Plano Gratuito'}</p>
+              <p className="text-sm font-medium text-gray-900 truncate">{user?.name || 'Visitante'}</p>
+              <p className="text-xs text-gray-500 truncate">{isAuthenticated ? (isPremium ? 'Premium 💎' : 'Gratuito') : 'Não logado'}</p>
             </div>
+            {isAuthenticated && (
+                <button onClick={() => logout()} className="text-gray-400 hover:text-red-500 transition" title="Sair">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                </button>
+            )}
           </div>
+        </div>
         </div>
       </aside>
 
@@ -235,7 +249,9 @@ const Dashboard: React.FC = () => {
               </div>
               <h1 className="text-xl font-bold text-gray-800">HoraProfe</h1>
             </div>
-            <UserButton />
+            <div className="flex items-center gap-3">
+               {isAuthenticated && user?.picture && <img src={user.picture} alt="Profile" className="w-8 h-8 rounded-full" />}
+            </div>
           </div>
         </header>
 
@@ -277,16 +293,13 @@ const Dashboard: React.FC = () => {
                     </div>
 
                     <div className="w-full sm:w-auto">
-                      <SignedOut>
-                        <SignInButton mode="modal">
-                          <button className="w-full flex items-center justify-center gap-2 bg-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 shadow-md">
+                    <div className="w-full sm:w-auto">
+                      {!isAuthenticated ? (
+                          <button onClick={() => login()} className="w-full flex items-center justify-center gap-2 bg-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 shadow-md">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 3a1 1 0 011 1v12a1 1 0 11-2 0V4a1 1 0 011-1zm7.707 3.293a1 1 0 010 1.414L9.414 9H17a1 1 0 110 2H9.414l1.293 1.293a1 1 0 01-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                             Entrar para Gerar
                           </button>
-                        </SignInButton>
-                      </SignedOut>
-
-                      <SignedIn>
+                      ) : (
                         <button
                           onClick={handleGenerateSchedule}
                           disabled={isLoading || teachers.length === 0}
@@ -307,7 +320,8 @@ const Dashboard: React.FC = () => {
                             </>
                           )}
                         </button>
-                      </SignedIn>
+                      )}
+                    </div>
                     </div>
                   </div>
                 </div>
