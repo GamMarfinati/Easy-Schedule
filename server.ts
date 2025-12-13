@@ -41,6 +41,8 @@ app.use(
           "'self'",
           "data:",
           "https://placehold.co",
+          "https://lh3.googleusercontent.com", // Google Profile Images
+          "https://*.googleusercontent.com", // Catch-all for Google images
           "https://dev-szvibc258sbp53d0.us.auth0.com", // Avatar do usuário vem daqui as vezes
         ],
         connectSrc: [
@@ -118,12 +120,12 @@ protectedRouter.use('/organization', organizationRoutes);
 protectedRouter.use('/organization', protectedInvitationRouter);
 
 // Protect all API routes with tenant isolation and rate limiting
-import { generateSchedule } from './server/controllers/scheduleController.js';
+import { generateScheduleAI } from './server/controllers/geminiController.js';
 import { exportSchedule } from './server/controllers/exportController.js';
 
 const apiRoutes = express.Router();
 apiRoutes.use(tenantMiddleware);
-apiRoutes.post('/schedules/generate', validate(ScheduleInputSchema), generateSchedule);
+apiRoutes.post('/schedules/generate', validate(ScheduleInputSchema), generateScheduleAI);
 apiRoutes.get('/schedules/:id/export', exportSchedule);
 apiRoutes.post('/generate', adapter(generateHandler));
 
