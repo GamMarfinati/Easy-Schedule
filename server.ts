@@ -31,21 +31,27 @@ app.use(
           "'self'",
           "'unsafe-inline'",
           "https://static.cloudflareinsights.com",
-          "https://cdn.tailwindcss.com", // ADICIONADO: Necessário para o estilo
+          "https://cdn.tailwindcss.com",
         ],
         styleSrc: [
           "'self'",
-          "'unsafe-inline'", // Necessário para o CSS injetado pelo Tailwind
+          "'unsafe-inline'",
         ],
         imgSrc: [
           "'self'",
           "data:",
-          "https://placehold.co", // ADICIONADO: Necessário para imagens de exemplo
+          "https://placehold.co",
+          "https://dev-szvibc258sbp53d0.us.auth0.com", // Avatar do usuário vem daqui as vezes
         ],
         connectSrc: [
           "'self'",
           "https://cloudflareinsights.com",
-          "https://cdn.tailwindcss.com", // Às vezes o CDN faz requests de fonte/config
+          "https://cdn.tailwindcss.com",
+          "https://dev-szvibc258sbp53d0.us.auth0.com", // ADICIONADO: Permitir login Auth0
+        ],
+        frameSrc: [
+          "'self'",
+          "https://dev-szvibc258sbp53d0.us.auth0.com", // ADICIONADO: Necessário para Auth0 silent auth
         ],
         fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
       },
