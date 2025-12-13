@@ -1,7 +1,13 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: (() => {
+    const url = import.meta.env.VITE_API_URL || '/api';
+    if (url.startsWith('http')) {
+        return url.endsWith('/api') ? url : `${url}/api`;
+    }
+    return url;
+  })(),
 });
 
 export const setupInterceptors = (getAccessToken: () => Promise<string>) => {

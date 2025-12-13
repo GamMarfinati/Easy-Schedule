@@ -92,7 +92,7 @@ const BillingPage: React.FC = () => {
                        <tr><td colSpan={3} className="px-6 py-4 text-center">Carregando...</td></tr>
                     ) : invoices.length === 0 ? (
                       <tr><td colSpan={3} className="px-6 py-4 text-center text-gray-500">Nenhuma fatura encontrada.</td></tr>
-                    ) : (
+                    ) : Array.isArray(invoices) ? (
                       invoices.map((invoice) => (
                         <tr key={invoice.id}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -110,7 +110,7 @@ const BillingPage: React.FC = () => {
                           </td>
                         </tr>
                       ))
-                    )}
+                    ) : null}
                   </tbody>
                 </table>
               </div>
