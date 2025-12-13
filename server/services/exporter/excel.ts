@@ -3,7 +3,7 @@ import { ScheduleSolution } from '../scheduler/types.js';
 
 export const generateExcel = async (schedule: ScheduleSolution, orgName: string): Promise<Buffer> => {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'EasySchedule';
+  workbook.creator = 'HoraProfe';
   workbook.created = new Date();
 
   // Group by Class
@@ -42,5 +42,5 @@ export const generateExcel = async (schedule: ScheduleSolution, orgName: string)
   });
 
   const buffer = await workbook.xlsx.writeBuffer();
-  return buffer as Buffer;
+  return buffer as unknown as Buffer;
 };

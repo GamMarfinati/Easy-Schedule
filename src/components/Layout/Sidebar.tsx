@@ -24,7 +24,7 @@ const Sidebar: React.FC = () => {
   return (
     <div className="flex flex-col w-64 bg-gray-800 h-screen fixed left-0 top-0 overflow-y-auto">
       <div className="flex items-center justify-center h-16 bg-gray-900">
-        <span className="text-white font-bold text-xl">EasySchedule</span>
+        <span className="text-white font-bold text-xl">HoraProfe</span>
       </div>
       <div className="flex-1 flex flex-col p-4">
         <nav className="space-y-1">

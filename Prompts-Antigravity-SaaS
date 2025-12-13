@@ -1,5 +1,5 @@
 # 🤖 PROMPTS ESTRUTURADOS PARA ANTIGRAVITY + GEMINI 3.0
-## Transformar EasySchedule em SaaS com IA
+## Transformar HoraProfe em SaaS com IA
 
 ---
 
@@ -8,7 +8,7 @@
 Cole isto ANTES de cada prompt no Antigravity:
 
 ```
-Você é um especialista em desenvolvimento full-stack. Estou usando Antigravity com Gemini 3.0 para criar um SaaS educacional chamado EasySchedule.
+Você é um especialista em desenvolvimento full-stack. Estou usando Antigravity com Gemini 3.0 para criar um SaaS educacional chamado HoraProfe.
 
 TECNOLOGIAS:
 - Frontend: React + TypeScript
@@ -61,7 +61,7 @@ REQUISITOS:
    - Validação de token expirado com refresh
 
 3. Auth0 Config:
-   - Custom claim "tenant_id" (namespace: https://easyschedule.com/tenant_id)
+   - Custom claim "tenant_id" (namespace: https://horaprofe.com.br/tenant_id)
    - Rules do Auth0 que adicionam tenant_id ao token
 
 Gere código completo, pronto para usar.
@@ -411,7 +411,7 @@ Crie checklist de segurança e implemente proteções essenciais.
 
 REQUISITOS:
 1. CORS:
-   - Apenas domínios confiáveis (app.easyschedule.com, localhost:3000)
+   - Apenas domínios confiáveis (app.horaprofe.com.br, localhost:3000)
    - Permitir credenciais (credentials: true)
 
 2. Rate Limiting:
@@ -454,7 +454,7 @@ REQUISITOS:
    - Variáveis de ambiente: REACT_APP_AUTH0_DOMAIN, REACT_APP_API_URL, etc
    - Deploy automático em cada push para main
    - Preview deploys para PRs
-   - Custom domain: app.easyschedule.com
+   - Custom domain: app.horaprofe.com.br
 
 2. Railway Setup (Backend Node.js):
    - Conectar repo GitHub
@@ -462,7 +462,7 @@ REQUISITOS:
    - Build command: npm ci && npm run build
    - Start command: npm start
    - Deploy automático em cada push
-   - Custom domain: api.easyschedule.com
+   - Custom domain: api.horaprofe.com.br
 
 3. Database (PostgreSQL na Railway):
    - Criar banco PostgreSQL

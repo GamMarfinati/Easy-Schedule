@@ -99,13 +99,11 @@ app.use('/api', protectedRouter);
 // Serve Static Files (Frontend)
 // This must be after API routes to ensure API takes precedence
 if (process.env.NODE_ENV === 'production' || process.env.VITE_App_ENV === 'production') {
-  const distPath = path.join(__dirname, '../dist');
-  app.use(express.static(distPath));
+  app.use(express.static(path.join(process.cwd(), 'dist')));
 
   // Catch-all route for SPA
-  // Express 5: Use RegExp to match everything (avoiding string path issues)
-  app.get(/.*/, (req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
   });
 }
 

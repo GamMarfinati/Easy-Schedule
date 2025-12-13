@@ -30,7 +30,7 @@ export const generateICS = (schedule: ScheduleSolution, orgName: string): Promis
         location: orgName,
         status: 'CONFIRMED',
         busyStatus: 'BUSY',
-        organizer: { name: orgName, email: 'admin@easyschedule.com' },
+        organizer: { name: orgName, email: 'admin@horaprofe.com.br' },
       };
     });
 

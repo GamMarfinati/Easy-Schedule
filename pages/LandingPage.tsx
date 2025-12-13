@@ -16,7 +16,7 @@ const LandingPage: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
-            <h1 className="text-xl font-bold text-gray-800 tracking-tight">EasySchedule</h1>
+            <h1 className="text-xl font-bold text-gray-800 tracking-tight">HoraProfe</h1>
           </div>
 
           <nav className="hidden md:flex items-center gap-8">
@@ -83,7 +83,7 @@ const LandingPage: React.FC = () => {
              <div className="relative bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200">
                 {/* Placeholder Image - replaced with a better gradient/text if no image available, but keeping placeholder for now */}
                 <div className="aspect-w-16 aspect-h-9 bg-gray-100 flex items-center justify-center">
-                    <img src="https://placehold.co/1200x800/f3f4f6/1e40af?text=Interface+do+EasySchedule" alt="App Interface" className="w-full h-auto" />
+                    <img src="https://placehold.co/1200x800/f3f4f6/1e40af?text=Interface+do+HoraProfe" alt="App Interface" className="w-full h-auto" />
                 </div>
              </div>
           </div>
@@ -94,7 +94,7 @@ const LandingPage: React.FC = () => {
       <section id="features" className="py-24 bg-white">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Por que escolher o EasySchedule?</h2>
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Por que escolher o HoraProfe?</h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">Ferramentas poderosas para simplificar a rotina da coordenação pedagógica.</p>
           </div>
 
@@ -154,7 +154,7 @@ const LandingPage: React.FC = () => {
             <h2 className="text-3xl font-bold mb-12">O que dizem nossos clientes</h2>
             <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                 <div className="p-6 bg-gray-50 rounded-xl shadow-sm">
-                    <p className="text-gray-600 italic mb-4">"O EasySchedule salvou minha vida! Antes eu levava semanas para montar a grade, agora faço em minutos."</p>
+                    <p className="text-gray-600 italic mb-4">"O HoraProfe salvou minha vida! Antes eu levava semanas para montar a grade, agora faço em minutos."</p>
                     <p className="font-bold text-gray-900">- Maria Silva, Diretora Escolar</p>
                 </div>
                 <div className="p-6 bg-gray-50 rounded-xl shadow-sm">
@@ -175,10 +175,10 @@ const LandingPage: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <span className="text-xl font-bold">EasySchedule</span>
+              <span className="text-xl font-bold">HoraProfe</span>
             </div>
             <div className="text-gray-400 text-sm">
-              © 2025 EasySchedule. Todos os direitos reservados.
+              © 2025 HoraProfe. Todos os direitos reservados.
             </div>
           </div>
         </div>

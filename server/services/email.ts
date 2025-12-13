@@ -9,7 +9,7 @@ if (process.env.SENDGRID_API_KEY) {
   console.warn("Missing SENDGRID_API_KEY. Emails will not be sent.");
 }
 
-const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || 'noreply@easyschedule.com';
+const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || 'noreply@horaprofe.com.br';
 
 interface EmailData {
   to: string;

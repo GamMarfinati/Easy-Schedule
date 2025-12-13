@@ -185,7 +185,7 @@ const Dashboard: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
-            <span className="text-xl font-bold text-gray-800">EasySchedule</span>
+            <span className="text-xl font-bold text-gray-800">HoraProfe</span>
           </Link>
         </div>
 
@@ -233,7 +233,7 @@ const Dashboard: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <h1 className="text-xl font-bold text-gray-800">EasySchedule</h1>
+              <h1 className="text-xl font-bold text-gray-800">HoraProfe</h1>
             </div>
             <UserButton />
           </div>

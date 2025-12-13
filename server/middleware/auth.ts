@@ -27,7 +27,7 @@ export const extractTenant = async (req: Request, res: Response, next: NextFunct
     return next();
   }
 
-  const namespace = 'https://easyschedule.com';
+  const namespace = 'https://horaprofe.com.br';
   let tenantId = req.auth.payload[`${namespace}/tenant_id`] as string | undefined;
 
   // Fallback: If tenant_id is not in the token, try to find the user in the DB

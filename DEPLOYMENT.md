@@ -22,7 +22,7 @@ Antes de tudo, garanta que seu código está no GitHub.
 ## 3. Adicionar o Código (Serviço)
 
 1.  No mesmo projeto, clique em **"Create"** (ou "New") -> **"GitHub Repo"**.
-2.  Selecione o repositório do **Easy-Schedule**.
+2.  Selecione o repositório do **HoraProfe**.
 3.  O Railway vai importar o código e tentar fazer o deploy. **Ele vai falhar na primeira vez** porque faltam as variáveis. Isso é normal.
 
 ## 4. Configurar Variáveis de Ambiente
@@ -61,7 +61,7 @@ Vá na aba **"Settings"** do serviço:
 Vá na aba **"Settings"** -> **"Networking"** -> **"Public Networking"**.
 
 1.  Clique em **"Generate Domain"**.
-2.  Copie esse domínio (ex: `easy-schedule-uk8d.up.railway.app`).
+2.  Copie esse domínio (ex: `horaprofe-uk8d.up.railway.app`).
 3.  Volte nas **Variables** e atualize o `FRONTEND_URL` com esse valor (com `https://` na frente).
 4.  O deploy deve reiniciar automaticamente. Se não, clique em "Redeploy".
 
