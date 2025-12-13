@@ -21,6 +21,9 @@ import { ScheduleInputSchema } from './server/schemas/scheduleSchema.js';
 const app = express();
 const PORT = process.env.PORT || 3002;
 
+// Trust proxy para Railway (necessário para rate limiting e IP real)
+app.set('trust proxy', 1);
+
 // Security Headers
 app.use(
   helmet({
@@ -125,7 +128,7 @@ import { exportSchedule } from './server/controllers/exportController.js';
 
 const apiRoutes = express.Router();
 apiRoutes.use(tenantMiddleware);
-apiRoutes.post('/schedules/generate', validate(ScheduleInputSchema), generateScheduleAI);
+apiRoutes.post('/schedules/generate', generateScheduleAI); // Validação removida - Gemini usa formato simples
 apiRoutes.get('/schedules/:id/export', exportSchedule);
 apiRoutes.post('/generate', adapter(generateHandler));
 
