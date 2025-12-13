@@ -75,7 +75,7 @@ const PricingPage: React.FC = () => {
       </div>
 
       <div className="mt-12 space-y-4 sm:mt-16 sm:space-y-0 sm:grid sm:grid-cols-3 sm:gap-6 lg:max-w-4xl lg:mx-auto xl:max-w-none xl:mx-0 xl:grid-cols-3">
-        {plans.map((plan) => (
+        {Array.isArray(plans) && plans.map((plan) => (
           <div key={plan.id} className="border border-gray-700 rounded-lg shadow-sm divide-y divide-gray-700 bg-gray-800">
             <div className="p-6">
               <h2 className="text-lg leading-6 font-medium text-white">{plan.name}</h2>
