@@ -29,23 +29,25 @@ app.use(
         defaultSrc: ["'self'"],
         scriptSrc: [
           "'self'",
-          "'unsafe-inline'", // Necessário para hidratação do React/Vite
-          "https://static.cloudflareinsights.com", // Analytics do Cloudflare (visto nos logs)
+          "'unsafe-inline'",
+          "https://static.cloudflareinsights.com",
+          "https://cdn.tailwindcss.com", // ADICIONADO: Necessário para o estilo
         ],
         styleSrc: [
           "'self'",
-          "'unsafe-inline'", // Necessário para estilos injetados por JS
+          "'unsafe-inline'", // Necessário para o CSS injetado pelo Tailwind
         ],
         imgSrc: [
           "'self'",
-          "data:", // Permite ícones SVG em base64 (seus ícones gigantes)
-          "https://placehold.co", // Imagens de placeholder (visto nos logs)
+          "data:",
+          "https://placehold.co", // ADICIONADO: Necessário para imagens de exemplo
         ],
         connectSrc: [
           "'self'",
-          "https://cloudflareinsights.com", // Para onde o analytics envia dados
+          "https://cloudflareinsights.com",
+          "https://cdn.tailwindcss.com", // Às vezes o CDN faz requests de fonte/config
         ],
-        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"], // Comum para Google Fonts
+        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
       },
     },
   })
