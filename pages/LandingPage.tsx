@@ -154,18 +154,94 @@ const LandingPage: React.FC = () => {
 
       {/* Pricing Section */}
       <section id="pricing" className="py-24 bg-gray-50">
-         <div className="container mx-auto px-4 text-center">
-            <h2 className="text-3xl font-bold mb-8">Planos e Preços</h2>
-            <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-                Escolha o plano ideal para sua escola. Comece gratuitamente e faça upgrade quando precisar.
-            </p>
-            <Link 
-              to="/pricing" 
-              onClick={() => window.scrollTo(0, 0)}
-              className="bg-primary text-white px-8 py-3 rounded-full font-bold hover:bg-blue-700 transition shadow-lg inline-block"
-            >
-               Ver Tabela Completa
-            </Link>
+         <div className="container mx-auto px-4">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold mb-4">Planos e Preços</h2>
+              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                  Escolha o plano ideal para sua escola. Comece gratuitamente e faça upgrade quando precisar.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
+              {/* Free Plan */}
+              <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-200">
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Gratuito</h3>
+                <p className="text-gray-600 text-sm mb-4">Para conhecer a ferramenta</p>
+                <div className="mb-6">
+                  <span className="text-4xl font-bold text-gray-900">R$ 0</span>
+                  <span className="text-gray-500">/mês</span>
+                </div>
+                <ul className="space-y-2 mb-6 text-sm text-gray-600">
+                  <li className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    1 grade demonstrativa
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Visualização em tela
+                  </li>
+                </ul>
+                {!isAuthenticated ? (
+                  <button 
+                    onClick={() => login()} 
+                    className="w-full py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:border-primary hover:text-primary transition"
+                  >
+                    Começar Grátis
+                  </button>
+                ) : (
+                  <Link 
+                    to="/app" 
+                    className="block w-full py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:border-primary hover:text-primary transition text-center"
+                  >
+                    Ir para o App
+                  </Link>
+                )}
+              </div>
+
+              {/* Pro Plan */}
+              <div className="bg-primary rounded-2xl p-8 shadow-xl text-white relative overflow-hidden">
+                <div className="absolute top-0 right-0 bg-yellow-400 text-gray-900 text-xs font-bold px-3 py-1 rounded-bl-lg">
+                  POPULAR
+                </div>
+                <h3 className="text-xl font-bold mb-2">Pro</h3>
+                <p className="text-blue-100 text-sm mb-4">Acesso total para sua escola</p>
+                <div className="mb-6">
+                  <span className="text-4xl font-bold">R$ 99,90</span>
+                  <span className="text-blue-200">/mês</span>
+                </div>
+                <ul className="space-y-2 mb-6 text-sm text-blue-100">
+                  <li className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-yellow-300" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Grades ilimitadas
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-yellow-300" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Exportação PDF/Excel
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-yellow-300" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Suporte prioritário
+                  </li>
+                </ul>
+                <Link 
+                  to="/pricing" 
+                  onClick={() => window.scrollTo(0, 0)}
+                  className="block w-full py-3 bg-white text-primary rounded-lg font-bold hover:bg-blue-50 transition text-center"
+                >
+                  Assinar Pro
+                </Link>
+              </div>
+            </div>
          </div>
       </section>
 

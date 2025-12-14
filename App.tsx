@@ -16,6 +16,7 @@ import UsersPage from './src/pages/UsersPage';
 
 import InvitePage from './src/pages/InvitePage';
 import SchedulesPage from './src/pages/SchedulesPage';
+import ScheduleViewPage from './src/pages/ScheduleViewPage';
 
 const AppContent: React.FC = () => {
   const { getAccessToken } = useAuth();
@@ -54,6 +55,17 @@ const AppContent: React.FC = () => {
           <PrivateRoute>
             <AppLayout>
               <SchedulesPage />
+            </AppLayout>
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/app/schedules/:id"
+        element={
+          <PrivateRoute>
+            <AppLayout>
+              <ScheduleViewPage />
             </AppLayout>
           </PrivateRoute>
         }
