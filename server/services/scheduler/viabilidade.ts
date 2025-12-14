@@ -227,11 +227,13 @@ export function analisarViabilidade(
   // VERIFICAÇÃO 2: DISPONIBILIDADE DE PROFESSORES
   // =====================================================
   
-  const professoresComProblema: { nome: string; subject: string; aulas: number; slots: number; dias: string[]; diasNecessarios: number }[] = [];
+  // Lista de professores com problemas para exibir no relatório
+  const professoresComProblema: { nome: string; subject: string; aulas: number; slots: number; dias: string[]; diasNecessarios: number; turmas: number }[] = [];
   
   teachers.forEach(teacher => {
     const diasDisponiveis = teacher.availabilityDays.length;
     const slotsProf = diasDisponiveis * numSlotsDia;
+    const numTurmas = teacher.classAssignments.length;
     
     let totalAulasProf = 0;
     teacher.classAssignments.forEach(a => totalAulasProf += a.classCount);
@@ -239,13 +241,17 @@ export function analisarViabilidade(
     // Calcular quantos dias o professor precisaria estar disponível
     const diasNecessarios = Math.ceil(totalAulasProf / numSlotsDia);
     
+    // REGRA 1: Slots insuficientes (crítico)
     if (totalAulasProf > slotsProf) {
       const diasFaltando = diasNecessarios - diasDisponiveis;
+      const todosDias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
+      const diasIndisponiveis = todosDias.filter(d => !teacher.availabilityDays.includes(d));
+      
       problemas.push({
         tipo: 'CRITICO',
         categoria: 'DISPONIBILIDADE',
         mensagem: `${teacher.name} (${teacher.subject}): precisa dar ${totalAulasProf} aulas, mas só tem ${slotsProf} slots (${diasDisponiveis} dias × ${numSlotsDia} períodos).`,
-        detalhes: `SOLUÇÃO: Adicione mais ${diasFaltando} dia(s) de disponibilidade para este professor, OU reduza ${totalAulasProf - slotsProf} aulas da carga horária.`
+        detalhes: `SOLUÇÃO: Adicione ${diasFaltando} dia(s) [${diasIndisponiveis.slice(0, diasFaltando).join(', ')}], OU reduza ${totalAulasProf - slotsProf} aulas.`
       });
       
       professoresComProblema.push({
@@ -254,15 +260,50 @@ export function analisarViabilidade(
         aulas: totalAulasProf,
         slots: slotsProf,
         dias: teacher.availabilityDays,
-        diasNecessarios
+        diasNecessarios,
+        turmas: numTurmas
       });
-    } else if (totalAulasProf > slotsProf * 0.8) {
+    } 
+    // REGRA 2: Professor em múltiplas turmas com poucos dias (crítico)
+    // Um professor com poucas disponibilidades lecionando em 3+ turmas causa conflitos inevitáveis
+    else if (numTurmas >= 3 && diasDisponiveis <= 2) {
+      const todosDias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
+      const diasIndisponiveis = todosDias.filter(d => !teacher.availabilityDays.includes(d));
+      
+      problemas.push({
+        tipo: 'CRITICO',
+        categoria: 'DISPONIBILIDADE',
+        mensagem: `${teacher.name} (${teacher.subject}): leciona em ${numTurmas} turmas mas só tem ${diasDisponiveis} dias disponíveis.`,
+        detalhes: `SOLUÇÃO: Adicione mais dias de disponibilidade [${diasIndisponiveis.slice(0, 2).join(', ')}] para evitar conflitos entre turmas.`
+      });
+      
+      professoresComProblema.push({
+        nome: teacher.name,
+        subject: teacher.subject,
+        aulas: totalAulasProf,
+        slots: slotsProf,
+        dias: teacher.availabilityDays,
+        diasNecessarios: Math.max(3, diasNecessarios),
+        turmas: numTurmas
+      });
+    }
+    // REGRA 3: Alta ocupação (alerta)
+    else if (totalAulasProf > slotsProf * 0.8) {
       const ocupacao = Math.round((totalAulasProf / slotsProf) * 100);
       problemas.push({
         tipo: 'ALERTA',
         categoria: 'DISPONIBILIDADE',
         mensagem: `${teacher.name} (${teacher.subject}): ${ocupacao}% da capacidade ocupada (${totalAulasProf} aulas em ${slotsProf} slots).`,
-        detalhes: `ATENÇÃO: Professor com alta ocupação pode dificultar a distribuição. Considere adicionar mais 1 dia de disponibilidade.`
+        detalhes: `ATENÇÃO: Alta ocupação pode dificultar a distribuição. Considere adicionar mais 1 dia de disponibilidade.`
+      });
+    }
+    // REGRA 4: Múltiplas turmas com poucos dias relativos (alerta)
+    else if (numTurmas >= 2 && diasDisponiveis <= 3 && totalAulasProf > slotsProf * 0.5) {
+      problemas.push({
+        tipo: 'ALERTA',
+        categoria: 'DISPONIBILIDADE',
+        mensagem: `${teacher.name} (${teacher.subject}): ${numTurmas} turmas com apenas ${diasDisponiveis} dias - risco de conflitos.`,
+        detalhes: `RECOMENDAÇÃO: Adicione mais 1-2 dias para flexibilizar a distribuição entre turmas.`
       });
     }
   });
