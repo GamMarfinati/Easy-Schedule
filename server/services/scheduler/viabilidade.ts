@@ -227,6 +227,8 @@ export function analisarViabilidade(
   // VERIFICAÇÃO 2: DISPONIBILIDADE DE PROFESSORES
   // =====================================================
   
+  const professoresComProblema: { nome: string; subject: string; aulas: number; slots: number; dias: string[]; diasNecessarios: number }[] = [];
+  
   teachers.forEach(teacher => {
     const diasDisponiveis = teacher.availabilityDays.length;
     const slotsProf = diasDisponiveis * numSlotsDia;
@@ -234,19 +236,33 @@ export function analisarViabilidade(
     let totalAulasProf = 0;
     teacher.classAssignments.forEach(a => totalAulasProf += a.classCount);
     
+    // Calcular quantos dias o professor precisaria estar disponível
+    const diasNecessarios = Math.ceil(totalAulasProf / numSlotsDia);
+    
     if (totalAulasProf > slotsProf) {
+      const diasFaltando = diasNecessarios - diasDisponiveis;
       problemas.push({
         tipo: 'CRITICO',
         categoria: 'DISPONIBILIDADE',
-        mensagem: `${teacher.name} (${teacher.subject}) precisa dar ${totalAulasProf} aulas, mas só está disponível para ${slotsProf} slots.`,
-        detalhes: `Disponível em ${diasDisponiveis} dias × ${numSlotsDia} períodos = ${slotsProf} slots máximos.`
+        mensagem: `${teacher.name} (${teacher.subject}): precisa dar ${totalAulasProf} aulas, mas só tem ${slotsProf} slots (${diasDisponiveis} dias × ${numSlotsDia} períodos).`,
+        detalhes: `SOLUÇÃO: Adicione mais ${diasFaltando} dia(s) de disponibilidade para este professor, OU reduza ${totalAulasProf - slotsProf} aulas da carga horária.`
+      });
+      
+      professoresComProblema.push({
+        nome: teacher.name,
+        subject: teacher.subject,
+        aulas: totalAulasProf,
+        slots: slotsProf,
+        dias: teacher.availabilityDays,
+        diasNecessarios
       });
     } else if (totalAulasProf > slotsProf * 0.8) {
+      const ocupacao = Math.round((totalAulasProf / slotsProf) * 100);
       problemas.push({
         tipo: 'ALERTA',
         categoria: 'DISPONIBILIDADE',
-        mensagem: `${teacher.name} (${teacher.subject}) está com ${Math.round((totalAulasProf / slotsProf) * 100)}% da capacidade ocupada.`,
-        detalhes: `${totalAulasProf} aulas em ${slotsProf} slots disponíveis pode dificultar a alocação.`
+        mensagem: `${teacher.name} (${teacher.subject}): ${ocupacao}% da capacidade ocupada (${totalAulasProf} aulas em ${slotsProf} slots).`,
+        detalhes: `ATENÇÃO: Professor com alta ocupação pode dificultar a distribuição. Considere adicionar mais 1 dia de disponibilidade.`
       });
     }
   });
@@ -256,21 +272,25 @@ export function analisarViabilidade(
   // =====================================================
   
   // Verificar se o mesmo professor leciona em múltiplas turmas
-  const profMultiplasTurmas: Record<string, Set<string>> = {};
+  const profMultiplasTurmas: Record<string, { turmas: Set<string>; dias: string[]; subject: string }> = {};
   
   teachers.forEach(teacher => {
     const key = teacher.name;
     if (!profMultiplasTurmas[key]) {
-      profMultiplasTurmas[key] = new Set();
+      profMultiplasTurmas[key] = { 
+        turmas: new Set(), 
+        dias: teacher.availabilityDays,
+        subject: teacher.subject
+      };
     }
     teacher.classAssignments.forEach(a => {
-      profMultiplasTurmas[key].add(a.grade);
+      profMultiplasTurmas[key].turmas.add(a.grade);
     });
   });
 
-  Object.entries(profMultiplasTurmas).forEach(([prof, turmasSet]) => {
-    if (turmasSet.size > 1) {
-      const turmasArr = Array.from(turmasSet);
+  Object.entries(profMultiplasTurmas).forEach(([prof, data]) => {
+    if (data.turmas.size > 1) {
+      const turmasArr = Array.from(data.turmas);
       let totalAulasSimultaneas = 0;
       
       teachers
@@ -279,15 +299,23 @@ export function analisarViabilidade(
           t.classAssignments.forEach(a => totalAulasSimultaneas += a.classCount);
         });
 
-      const diasDisponiveisProf = teachers.find(t => t.name === prof)?.availabilityDays.length || 5;
+      const diasDisponiveisProf = data.dias.length;
       const slotsDispProf = diasDisponiveisProf * numSlotsDia;
+      const diasNecessarios = Math.ceil(totalAulasSimultaneas / numSlotsDia);
+      const diasFaltando = diasNecessarios - diasDisponiveisProf;
 
       if (totalAulasSimultaneas > slotsDispProf) {
+        // Encontrar quais dias NÃO estão disponíveis para sugerir
+        const todosDias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
+        const diasIndisponiveis = todosDias.filter(d => !data.dias.includes(d));
+        
         problemas.push({
           tipo: 'CRITICO',
           categoria: 'BILOCACAO',
-          mensagem: `${prof} leciona em ${turmasSet.size} turmas (${turmasArr.join(', ')}) com ${totalAulasSimultaneas} aulas, mas só tem ${slotsDispProf} slots.`,
-          detalhes: `Impossível alocar sem bilocação (estar em duas turmas ao mesmo tempo).`
+          mensagem: `${prof} (${data.subject}): leciona em ${data.turmas.size} turmas com ${totalAulasSimultaneas} aulas total, mas só está disponível ${diasDisponiveisProf} dias (${slotsDispProf} slots).`,
+          detalhes: diasIndisponiveis.length > 0 
+            ? `SOLUÇÃO: Adicione ${diasFaltando} dia(s) como ${diasIndisponiveis.slice(0, diasFaltando).join(' ou ')}, OU reduza para ${data.turmas.size - 1} turma(s).`
+            : `SOLUÇÃO: Reduza a carga horária em ${totalAulasSimultaneas - slotsDispProf} aulas, OU reduza o número de turmas.`
         });
       }
     }
@@ -328,25 +356,36 @@ export function analisarViabilidade(
     const presetNecessario = PRESETS_HORARIOS.find(p => p.aulasSemanais >= maxAulasTurma);
     
     if (presetNecessario) {
-      sugestoes.push(`📅 Altere para "${presetNecessario.nome}" que suporta até ${presetNecessario.aulasSemanais} aulas/semana.`);
+      sugestoes.push(`📅 OPÇÃO 1: Mude para "${presetNecessario.nome}" (${presetNecessario.aulasPorDia} períodos/dia) para comportar até ${presetNecessario.aulasSemanais} aulas/semana por turma.`);
     } else {
-      sugestoes.push(`📅 Reduza o número de aulas por turma para no máximo ${PRESETS_HORARIOS[PRESETS_HORARIOS.length - 1].aulasSemanais}.`);
+      sugestoes.push(`📅 OPÇÃO 1: A carga horária excede o máximo suportado (${PRESETS_HORARIOS[PRESETS_HORARIOS.length - 1].aulasSemanais} aulas). Reduza disciplinas.`);
     }
-    sugestoes.push(`✂️ Ou reduza a carga horária de algumas disciplinas.`);
+    sugestoes.push(`✂️ OPÇÃO 2: Reduza a carga horária de algumas disciplinas para caber no período atual.`);
   }
 
   if (problemasCriticos.some(p => p.categoria === 'DISPONIBILIDADE')) {
-    sugestoes.push(`📆 Amplie os dias disponíveis dos professores com sobrecarga.`);
-    sugestoes.push(`👨‍🏫 Ou divida as aulas entre mais professores.`);
+    // Encontrar professores com problemas específicos
+    const profsComProblema = problemasCriticos
+      .filter(p => p.categoria === 'DISPONIBILIDADE')
+      .map(p => p.mensagem.split(':')[0])
+      .slice(0, 3);
+    
+    sugestoes.push(`👨‍🏫 PROFESSORES COM DISPONIBILIDADE INSUFICIENTE: ${profsComProblema.join(', ')}.`);
+    sugestoes.push(`📆 SOLUÇÃO: Edite estes professores e adicione mais dias de disponibilidade, OU reduza suas aulas.`);
   }
 
   if (problemasCriticos.some(p => p.categoria === 'BILOCACAO')) {
-    sugestoes.push(`⏰ Aumente os dias de disponibilidade dos professores que lecionam em múltiplas turmas.`);
-    sugestoes.push(`🔄 Ou reduza o número de turmas por professor.`);
+    const profsComBilocacao = problemasCriticos
+      .filter(p => p.categoria === 'BILOCACAO')
+      .map(p => p.mensagem.split(':')[0])
+      .slice(0, 3);
+    
+    sugestoes.push(`🔄 PROFESSORES EM MÚLTIPLAS TURMAS: ${profsComBilocacao.join(', ')}.`);
+    sugestoes.push(`⏰ SOLUÇÃO: Aumente a disponibilidade destes professores para cobrir todas as turmas sem conflito.`);
   }
 
   if (problemasCriticos.some(p => p.categoria === 'DISTRIBUICAO')) {
-    sugestoes.push(`📊 Aumente os dias de disponibilidade dos professores ou reduza a carga horária.`);
+    sugestoes.push(`📊 DISTRIBUIÇÃO: Alguns professores precisam dar mais aulas/dia do que o período comporta. Adicione mais dias.`);
   }
 
   // Sugestão de preset recomendado
