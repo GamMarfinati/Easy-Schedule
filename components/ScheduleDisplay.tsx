@@ -13,15 +13,93 @@ interface ScheduleDisplayProps {
 
 type DisplayMode = 'geral' | 'turma' | 'professor';
 
-const LoadingState: React.FC = () => (
+// Mensagens rotativas para o loading
+const LOADING_MESSAGES = [
+  { title: "A IA está pensando...", subtitle: "Organizando os horários e verificando conflitos." },
+  { title: "Quase lá...", subtitle: "Isso pode levar alguns minutos. ☕ Que tal um café?" },
+  { title: "Trabalhando duro...", subtitle: "A IA está analisando milhares de combinações possíveis." },
+  { title: "Montando seu quadro...", subtitle: "Garantindo que nenhum professor fique em duas salas ao mesmo tempo! 🧙‍♂️" },
+  { title: "Otimizando a grade...", subtitle: "Buscando a melhor distribuição de aulas para todos." },
+  { title: "Verificando disponibilidades...", subtitle: "Cada professor terá aulas apenas nos seus dias." },
+];
+
+const LoadingState: React.FC = () => {
+  const [messageIndex, setMessageIndex] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  
+  useEffect(() => {
+    // Rotacionar mensagens a cada 5 segundos
+    const messageInterval = setInterval(() => {
+      setMessageIndex(prev => (prev + 1) % LOADING_MESSAGES.length);
+    }, 5000);
+    
+    // Contador de tempo
+    const timeInterval = setInterval(() => {
+      setElapsedTime(prev => prev + 1);
+    }, 1000);
+    
+    return () => {
+      clearInterval(messageInterval);
+      clearInterval(timeInterval);
+    };
+  }, []);
+  
+  const formatTime = (seconds: number) => {
+    if (seconds < 60) return `${seconds}s`;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs}s`;
+  };
+  
+  const currentMessage = LOADING_MESSAGES[messageIndex];
+  
+  return (
     <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center p-4">
-        <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-primary"></div>
-        <h3 className="mt-6 text-xl font-semibold text-gray-700">A IA está pensando...</h3>
-        <p className="mt-2 text-gray-500 max-w-sm">
-            Estamos organizando os horários, verificando conflitos e montando o quadro perfeito. Este processo pode levar um momento.
-        </p>
+      {/* Spinner animado */}
+      <div className="relative">
+        <div className="w-20 h-20 border-4 border-purple-200 rounded-full"></div>
+        <div className="absolute top-0 left-0 w-20 h-20 border-4 border-transparent border-t-primary rounded-full animate-spin"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+          <span className="text-2xl">🤖</span>
+        </div>
+      </div>
+      
+      {/* Mensagem principal */}
+      <h3 className="mt-6 text-xl font-semibold text-gray-700 transition-all duration-500">
+        {currentMessage.title}
+      </h3>
+      <p className="mt-2 text-gray-500 max-w-sm transition-all duration-500">
+        {currentMessage.subtitle}
+      </p>
+      
+      {/* Tempo decorrido */}
+      <div className="mt-6 flex items-center gap-2 text-sm text-gray-400">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>Tempo: {formatTime(elapsedTime)}</span>
+      </div>
+      
+      {/* Dica após 30 segundos */}
+      {elapsedTime > 30 && (
+        <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg max-w-sm animate-fade-in">
+          <p className="text-sm text-amber-700">
+            💡 <strong>Dica:</strong> Quanto mais professores e turmas, mais tempo a IA precisa para garantir uma grade sem conflitos.
+          </p>
+        </div>
+      )}
+      
+      {/* Aviso após 60 segundos */}
+      {elapsedTime > 60 && (
+        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg max-w-sm">
+          <p className="text-sm text-blue-700">
+            🧠 A IA está tentando várias abordagens... Se falhar, tentaremos um algoritmo genético como backup!
+          </p>
+        </div>
+      )}
     </div>
-);
+  );
+};
 
 const EmptyState: React.FC = () => (
     <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center p-4 bg-gray-50 rounded-lg">

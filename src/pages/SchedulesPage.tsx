@@ -6,7 +6,7 @@ import TeacherForm from '../../components/TeacherForm';
 import ScheduleDisplay from '../../components/ScheduleDisplay';
 import TeacherCard from '../../components/TeacherCard';
 import TimeSlotManager from '../../components/TimeSlotManager';
-import { generateSchedule, getSchedulePresets, PresetHorario, ViabilityError } from '../../services/geminiService';
+import { generateSchedule, getSchedulePresets, validateViability, PresetHorario, ViabilityError } from '../../services/geminiService';
 import DataImporter from '../../components/DataImporter';
 import { DEFAULT_TIME_SLOTS } from '../../constants';
 import api from '../services/api';
@@ -26,6 +26,7 @@ const SchedulesPage: React.FC = () => {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isValidating, setIsValidating] = useState(false); // Para re-validar ao mudar preset
   const [error, setError] = useState<ScheduleError | null>(null);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [timeSlots, setTimeSlots] = useState<string[]>(DEFAULT_TIME_SLOTS);
@@ -95,23 +96,54 @@ const SchedulesPage: React.FC = () => {
     setEditingTeacher(null);
   }, []);
 
-  const handlePresetSelect = useCallback((preset: PresetHorario) => {
+  const handlePresetSelect = useCallback(async (preset: PresetHorario) => {
     console.log('Aplicando preset:', preset.id, 'com', preset.slots?.length, 'slots');
     
     // Aplicar os slots do preset selecionado
-    if (preset.slots && preset.slots.length > 0) {
-      setTimeSlots(preset.slots);
-    }
-    
+    const newSlots = preset.slots && preset.slots.length > 0 ? preset.slots : timeSlots;
+    setTimeSlots(newSlots);
     setSelectedPresetId(preset.id);
-    setError(null); // Limpar erro ao mudar preset
     
     // Se o preset veio de uma fonte com todos os presets (erro de viabilidade),
     // atualizar a lista local de presets para incluir todos
     if (error?.viabilityData?.allPresets && error.viabilityData.allPresets.length > presets.length) {
       setPresets(error.viabilityData.allPresets);
     }
-  }, [error, presets.length]);
+    
+    // Limpar erro anterior
+    setError(null);
+    
+    // Re-validar automaticamente se houver professores
+    if (teachers.length > 0) {
+      setIsValidating(true);
+      try {
+        const validation = await validateViability(teachers, newSlots);
+        
+        if (!validation.viable) {
+          // Ainda tem problemas, mostrar novo relatório
+          setError({
+            message: `Ainda há ${validation.problems.filter((p: any) => p.tipo === 'CRITICO').length} problema(s) pendente(s).`,
+            isViabilityError: true,
+            viabilityData: {
+              error: `Nova análise: ${validation.problems.filter((p: any) => p.tipo === 'CRITICO').length} problema(s) crítico(s) encontrado(s).`,
+              errorType: 'VIABILITY_ERROR',
+              details: validation.problems.filter((p: any) => p.tipo === 'CRITICO').map((p: any) => p.mensagem),
+              suggestion: validation.suggestions.join(' '),
+              statistics: validation.statistics,
+              recommendedPreset: validation.recommendedPreset,
+              allPresets: presets
+            }
+          });
+        }
+        // Se viável, erro fica null e o usuário pode gerar
+      } catch (err) {
+        console.error('Erro ao re-validar:', err);
+        // Se falhar a validação, não bloqueia o usuário
+      } finally {
+        setIsValidating(false);
+      }
+    }
+  }, [error, presets, teachers, timeSlots]);
 
   const handleGenerateSchedule = async () => {
     if (!isPremium) {
@@ -361,8 +393,16 @@ const SchedulesPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Indicador de Validação */}
+          {isValidating && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center gap-3">
+              <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-blue-700">Verificando se ainda há problemas com a nova configuração...</p>
+            </div>
+          )}
+
           {/* Erro de Viabilidade - Exibição Especial */}
-          {error?.isViabilityError && error.viabilityData && (
+          {!isValidating && error?.isViabilityError && error.viabilityData && (
             <ViabilityErrorDisplay
               error={error.viabilityData.error}
               details={error.viabilityData.details}
