@@ -48,18 +48,18 @@ const TimeSlotManager: React.FC<TimeSlotManagerProps> = ({ timeSlots, onTimeSlot
                     </li>
                 ))}
             </ul>
-            <div className="flex gap-2 pt-2 border-t">
+            <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t">
                 <input
                     type="text"
                     value={newSlot}
                     onChange={(e) => setNewSlot(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder="Ex: 7ª Aula ou Almoço"
-                    className="flex-grow px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition"
+                    className="flex-1 min-w-0 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition"
                 />
                 <button
                     onClick={handleAddSlot}
-                    className="bg-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-secondary transition-transform transform hover:scale-105"
+                    className="bg-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-secondary transition-transform transform hover:scale-105 whitespace-nowrap flex-shrink-0"
                 >
                     Adicionar
                 </button>

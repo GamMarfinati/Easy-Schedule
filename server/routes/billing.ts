@@ -3,6 +3,7 @@ import { createCheckoutSession, getPortalUrl } from '../services/stripe.js';
 import { handleWebhook } from '../controllers/webhookController.js';
 import { tenantMiddleware } from '../middleware/tenant.js';
 import db from '../db.js';
+import stripe from '../services/stripe.js';
 
 import { checkJwt, extractTenant } from '../middleware/auth.js';
 
@@ -62,11 +63,38 @@ router.post('/portal', async (req, res) => {
 router.get('/invoices', async (req, res) => {
   try {
     const tenantId = req.tenantId!;
+    const org = await db('organizations').where({ id: tenantId }).first();
+
+    // Se a organização tem um customer_id no Stripe, buscar direto do Stripe
+    if (org?.stripe_customer_id) {
+      try {
+        const stripeInvoices = await stripe.invoices.list({
+          customer: org.stripe_customer_id,
+          limit: 20,
+        });
+
+        const invoices = stripeInvoices.data.map(inv => ({
+          id: inv.id,
+          amount_cents: inv.amount_paid || inv.total,
+          status: inv.status === 'paid' ? 'paid' : inv.status,
+          created_at: new Date(inv.created * 1000).toISOString(),
+          pdf_url: inv.invoice_pdf,
+        }));
+
+        return res.json(invoices);
+      } catch (stripeError) {
+        console.error("Error fetching from Stripe:", stripeError);
+        // Fallback para banco de dados local
+      }
+    }
+
+    // Fallback: buscar do banco de dados local
     const invoices = await db('invoices')
       .where({ organization_id: tenantId })
       .orderBy('created_at', 'desc');
     res.json(invoices);
   } catch (error) {
+    console.error("Error fetching invoices:", error);
     res.status(500).json({ error: "Error fetching invoices" });
   }
 });
