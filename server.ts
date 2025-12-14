@@ -136,7 +136,17 @@ apiRoutes.post('/generate', adapter(generateHandler));
 
 protectedRouter.use(apiRoutes);
 
+// ⚠️ ROTA DE TESTE TEMPORÁRIA (REMOVER EM PRODUÇÃO)
+// Permite testar o gerador de grades sem autenticação
+// DEVE vir ANTES do protectedRouter para não passar pela autenticação
+if (process.env.NODE_ENV !== 'production') {
+  app.post('/test/generate', generateScheduleAI);
+  console.log('⚠️  ROTA DE TESTE ATIVA: POST /test/generate');
+}
+
 app.use('/api', protectedRouter);
+
+
 
 // Serve Static Files (Frontend)
 // This must be after API routes to ensure API takes precedence

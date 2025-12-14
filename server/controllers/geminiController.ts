@@ -29,7 +29,7 @@ interface Schedule {
 }
 
 // Configurações do Loop de Auto-Correção
-const MAX_RETRY_ATTEMPTS = 3;
+const MAX_RETRY_ATTEMPTS = 5; // Aumentado para dar mais chances de auto-correção
 const AI_MODEL = "gemini-2.0-flash"; // Modelo otimizado para velocidade e precisão
 const AI_TEMPERATURE = 0.1; // Baixa temperatura para respostas mais determinísticas
 
