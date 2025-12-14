@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { PresetHorario } from '../services/geminiService';
 
 interface ViabilityErrorDisplayProps {
@@ -28,6 +28,8 @@ const ViabilityErrorDisplay: React.FC<ViabilityErrorDisplayProps> = ({
   onPresetSelect,
   onDismiss
 }) => {
+  const [isProblemsExpanded, setIsProblemsExpanded] = useState(false);
+  
   return (
     <div className="bg-gradient-to-br from-red-50 to-orange-50 border border-red-200 rounded-2xl p-6 shadow-lg">
       {/* Header */}
@@ -77,24 +79,41 @@ const ViabilityErrorDisplay: React.FC<ViabilityErrorDisplayProps> = ({
         </div>
       </div>
 
-      {/* Lista de Problemas */}
+      {/* Lista de Problemas - Colapsável */}
       <div className="mb-6">
-        <h4 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
-          <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+        <button 
+          onClick={() => setIsProblemsExpanded(!isProblemsExpanded)}
+          className="w-full font-semibold text-gray-800 flex items-center justify-between gap-2 p-3 bg-white/80 hover:bg-white rounded-lg transition-all cursor-pointer border border-gray-200 hover:border-red-300 hover:shadow-sm"
+        >
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <span>Problemas Detectados ({details.length})</span>
+          </div>
+          <svg 
+            className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${isProblemsExpanded ? 'rotate-180' : ''}`} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
-          Problemas Detectados ({details.length})
-        </h4>
-        <ul className="space-y-2">
-          {details.map((detail, index) => (
-            <li key={index} className="flex items-start gap-2 text-sm text-gray-700 bg-white/60 p-3 rounded-lg">
-              <span className="flex-shrink-0 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
-                {index + 1}
-              </span>
-              <span>{detail}</span>
-            </li>
-          ))}
-        </ul>
+        </button>
+        
+        {/* Lista expandível */}
+        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isProblemsExpanded ? 'max-h-[500px] opacity-100 mt-3' : 'max-h-0 opacity-0'}`}>
+          <ul className="space-y-2">
+            {details.map((detail, index) => (
+              <li key={index} className="flex items-start gap-2 text-sm text-gray-700 bg-white/60 p-3 rounded-lg">
+                <span className="flex-shrink-0 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                  {index + 1}
+                </span>
+                <span>{detail}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       {/* Sugestão */}
