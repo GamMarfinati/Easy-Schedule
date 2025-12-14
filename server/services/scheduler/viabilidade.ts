@@ -293,30 +293,83 @@ export function analisarViabilidade(
       const turmasArr = Array.from(data.turmas);
       let totalAulasSimultaneas = 0;
       
+      // Coletar aulas por turma para análise detalhada
+      const aulasPorTurmaProf: Record<string, number> = {};
+      
       teachers
         .filter(t => t.name === prof)
         .forEach(t => {
-          t.classAssignments.forEach(a => totalAulasSimultaneas += a.classCount);
+          t.classAssignments.forEach(a => {
+            totalAulasSimultaneas += a.classCount;
+            aulasPorTurmaProf[a.grade] = (aulasPorTurmaProf[a.grade] || 0) + a.classCount;
+          });
         });
 
       const diasDisponiveisProf = data.dias.length;
       const slotsDispProf = diasDisponiveisProf * numSlotsDia;
-      const diasNecessarios = Math.ceil(totalAulasSimultaneas / numSlotsDia);
-      const diasFaltando = diasNecessarios - diasDisponiveisProf;
-
+      
+      // NOVA VERIFICAÇÃO: Para professores em múltiplas turmas, 
+      // cada aula de cada turma precisa de um slot ÚNICO
+      // O professor não pode dar aula para 2 turmas ao mesmo tempo!
+      const maxAulasMesmoDia = Math.max(...Object.values(aulasPorTurmaProf));
+      const numTurmas = data.turmas.size;
+      
+      // Se o professor dá 4 aulas para a turma A e 4 para a turma B,
+      // ele precisa de 8 slots únicos, não 4 slots compartilhados!
       if (totalAulasSimultaneas > slotsDispProf) {
         // Encontrar quais dias NÃO estão disponíveis para sugerir
         const todosDias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
         const diasIndisponiveis = todosDias.filter(d => !data.dias.includes(d));
+        const diasNecessarios = Math.ceil(totalAulasSimultaneas / numSlotsDia);
+        const diasFaltando = diasNecessarios - diasDisponiveisProf;
         
         problemas.push({
           tipo: 'CRITICO',
           categoria: 'BILOCACAO',
-          mensagem: `${prof} (${data.subject}): leciona em ${data.turmas.size} turmas com ${totalAulasSimultaneas} aulas total, mas só está disponível ${diasDisponiveisProf} dias (${slotsDispProf} slots).`,
+          mensagem: `${prof} (${data.subject}): leciona em ${numTurmas} turmas com ${totalAulasSimultaneas} aulas total, mas só tem ${slotsDispProf} slots (${diasDisponiveisProf} dias × ${numSlotsDia} períodos).`,
           detalhes: diasIndisponiveis.length > 0 
-            ? `SOLUÇÃO: Adicione ${diasFaltando} dia(s) como ${diasIndisponiveis.slice(0, diasFaltando).join(' ou ')}, OU reduza para ${data.turmas.size - 1} turma(s).`
-            : `SOLUÇÃO: Reduza a carga horária em ${totalAulasSimultaneas - slotsDispProf} aulas, OU reduza o número de turmas.`
+            ? `SOLUÇÃO: Adicione ${diasFaltando} dia(s) como ${diasIndisponiveis.slice(0, Math.min(diasFaltando, 3)).join(', ')}, OU reduza a carga horária.`
+            : `SOLUÇÃO: Reduza a carga horária em ${totalAulasSimultaneas - slotsDispProf} aulas, OU divida entre mais professores.`
         });
+      } 
+      // NOVA VERIFICAÇÃO: Bilocação por distribuição
+      // Um professor com N turmas precisa de slots suficientes para NÃO dar aula para 2 turmas simultaneamente
+      // Se ele dá muitas aulas por turma por dia, há risco de bilocação
+      else {
+        // Calcular se é possível distribuir as aulas sem bilocação
+        // Cada turma precisa de seus próprios slots únicos por dia
+        const maxAulasPorTurmaSomaDia = Math.max(...Object.values(aulasPorTurmaProf));
+        
+        // Verificar se em algum dia não há slots suficientes para todas as turmas
+        // Se o professor tem 5 aulas para turma A e 4 para turma B, 
+        // ele precisa de slots suficientes por dia para acomodar ambas alternadamente
+        const aulasPorDiaNecessarias = Math.ceil(totalAulasSimultaneas / diasDisponiveisProf);
+        
+        if (aulasPorDiaNecessarias > numSlotsDia) {
+          const todosDias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
+          const diasIndisponiveis = todosDias.filter(d => !data.dias.includes(d));
+          const diasNecessarios = Math.ceil(totalAulasSimultaneas / numSlotsDia);
+          const diasFaltando = diasNecessarios - diasDisponiveisProf;
+          
+          problemas.push({
+            tipo: 'CRITICO',
+            categoria: 'BILOCACAO',
+            mensagem: `${prof} (${data.subject}): precisa dar ${aulasPorDiaNecessarias} aulas/dia para ${numTurmas} turmas, mas só há ${numSlotsDia} períodos/dia.`,
+            detalhes: diasIndisponiveis.length > 0
+              ? `SOLUÇÃO: Adicione mais ${diasFaltando} dia(s) de disponibilidade (${diasIndisponiveis.slice(0, 2).join(', ')}) para distribuir melhor.`
+              : `SOLUÇÃO: Reduza a carga horária ou divida entre mais professores.`
+          });
+        }
+        // ALERTA: Mesmo quando cabe, verificar se há alta ocupação
+        else if (totalAulasSimultaneas > slotsDispProf * 0.7) {
+          // Alta ocupação com múltiplas turmas = alto risco de conflito
+          problemas.push({
+            tipo: 'ALERTA',
+            categoria: 'BILOCACAO',
+            mensagem: `${prof} (${data.subject}): alta ocupação (${Math.round(totalAulasSimultaneas/slotsDispProf*100)}%) em ${numTurmas} turmas - risco de conflitos.`,
+            detalhes: `RECOMENDAÇÃO: Adicione mais 1-2 dias de disponibilidade para flexibilizar a distribuição.`
+          });
+        }
       }
     }
   });
