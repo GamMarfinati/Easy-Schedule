@@ -117,30 +117,177 @@ const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, isLoading, 
     return null;
   }
 
+  // Função auxiliar para obter os dados filtrados conforme o modo de exibição
+  const getFilteredData = () => {
+    const data: { slot: string; cells: { day: string; content: string }[] }[] = [];
+    
+    timeSlots.forEach(slot => {
+      const row: { day: string; content: string }[] = [];
+      DAYS_OF_WEEK.forEach(day => {
+        const cell = schedule[day]?.[slot];
+        let content = '';
+        
+        if (cell) {
+          if (displayMode === 'geral') {
+            content = `${cell.grade} - ${cell.subject} (${cell.teacherName})`;
+          } else if (displayMode === 'turma' && cell.grade === selectedGrade) {
+            content = `${cell.subject} (${cell.teacherName})`;
+          } else if (displayMode === 'professor' && cell.teacherName === selectedTeacherName) {
+            content = `${cell.grade} - ${cell.subject}`;
+          }
+        }
+        row.push({ day, content });
+      });
+      data.push({ slot, cells: row });
+    });
+    
+    return data;
+  };
+
+  // Gerar título do relatório
+  const getReportTitle = () => {
+    if (displayMode === 'turma' && selectedGrade) {
+      return `Quadro de Horários - ${selectedGrade}`;
+    } else if (displayMode === 'professor' && selectedTeacherName) {
+      return `Quadro de Horários - Prof. ${selectedTeacherName}`;
+    }
+    return 'Quadro de Horários - Visão Geral';
+  };
+
   // Função para download em diferentes formatos
-  const handleDownload = (format: 'pdf' | 'csv' | 'ics') => {
+  const handleDownload = (format: 'pdf' | 'csv') => {
     if (!schedule) return;
 
     const filename = `quadro-horarios-${new Date().toISOString().split('T')[0]}`;
+    const filteredData = getFilteredData();
+    const title = getReportTitle();
 
     if (format === 'pdf') {
-      // Para PDF, abrimos a janela de impressão do navegador
-      window.print();
+      // Gerar HTML formatado e abrir em nova janela para impressão
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        alert('Por favor, permita pop-ups para baixar o PDF.');
+        return;
+      }
+
+      const html = `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>${title}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      padding: 20px; 
+      background: white;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #6366f1;
+    }
+    .header h1 {
+      color: #1f2937;
+      font-size: 24px;
+      margin-bottom: 5px;
+    }
+    .header p {
+      color: #6b7280;
+      font-size: 12px;
+    }
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      margin-top: 10px;
+      font-size: 11px;
+    }
+    th { 
+      background: #6366f1; 
+      color: white; 
+      padding: 10px 8px; 
+      text-align: center;
+      font-weight: 600;
+    }
+    td { 
+      border: 1px solid #e5e7eb; 
+      padding: 8px; 
+      text-align: center;
+      vertical-align: middle;
+      min-height: 50px;
+    }
+    .slot-header {
+      background: #f3f4f6;
+      font-weight: 600;
+      color: #374151;
+    }
+    .cell-content {
+      background: #eff6ff;
+      border-left: 3px solid #3b82f6;
+      padding: 6px;
+      border-radius: 4px;
+      font-size: 10px;
+    }
+    .cell-content .grade { font-weight: 700; color: #1e40af; }
+    .cell-content .subject { color: #1e3a8a; }
+    .cell-content .teacher { color: #6b7280; font-style: italic; font-size: 9px; }
+    .footer {
+      margin-top: 20px;
+      text-align: center;
+      color: #9ca3af;
+      font-size: 10px;
+    }
+    @media print {
+      body { padding: 10px; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${title}</h1>
+    <p>Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</p>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 80px;">Horário</th>
+        ${DAYS_OF_WEEK.map(day => `<th>${day}</th>`).join('')}
+      </tr>
+    </thead>
+    <tbody>
+      ${filteredData.map(row => `
+        <tr>
+          <td class="slot-header">${row.slot}</td>
+          ${row.cells.map(cell => `
+            <td>${cell.content ? `<div class="cell-content">${cell.content}</div>` : ''}</td>
+          `).join('')}
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>
+  <div class="footer">
+    <p>HoraProfe - Sistema de Geração de Quadros de Horários</p>
+  </div>
+  <script>
+    window.onload = function() { 
+      window.print(); 
+    }
+  </script>
+</body>
+</html>`;
+
+      printWindow.document.write(html);
+      printWindow.document.close();
     } else if (format === 'csv') {
-      // Gerar CSV
+      // Gerar CSV respeitando o modo de exibição
       const headers = ['Horário', ...DAYS_OF_WEEK];
-      const rows = timeSlots.map(slot => {
-        const row = [slot];
-        DAYS_OF_WEEK.forEach(day => {
-          const cell = schedule[day]?.[slot];
-          if (cell) {
-            row.push(`${cell.grade} - ${cell.subject} (${cell.teacherName})`);
-          } else {
-            row.push('');
-          }
-        });
-        return row;
-      });
+      const rows = filteredData.map(row => [
+        row.slot,
+        ...row.cells.map(cell => cell.content)
+      ]);
 
       const csvContent = [headers, ...rows]
         .map(row => row.map(cell => `"${cell}"`).join(','))
@@ -151,57 +298,6 @@ const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, isLoading, 
       const link = document.createElement('a');
       link.href = url;
       link.download = `${filename}.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
-    } else if (format === 'ics') {
-      // Gerar ICS (formato de calendário)
-      const events: string[] = [];
-      const today = new Date();
-      const dayMap: Record<string, number> = { 
-        'Segunda-feira': 1, 'Terça-feira': 2, 'Quarta-feira': 3, 
-        'Quinta-feira': 4, 'Sexta-feira': 5 
-      };
-
-      Object.entries(schedule).forEach(([day, slots]) => {
-        if (!slots) return;
-        Object.entries(slots).forEach(([timeSlot, cell]) => {
-          if (!cell) return;
-          const dayOffset = dayMap[day] - today.getDay();
-          const eventDate = new Date(today);
-          eventDate.setDate(today.getDate() + (dayOffset >= 0 ? dayOffset : dayOffset + 7));
-          
-          const slotIndex = timeSlots.indexOf(timeSlot);
-          const startHour = 7 + slotIndex; // Assumindo que começa às 7h
-          eventDate.setHours(startHour, 0, 0, 0);
-
-          const formatDate = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-          const endDate = new Date(eventDate);
-          endDate.setMinutes(50);
-
-          events.push([
-            'BEGIN:VEVENT',
-            `DTSTART:${formatDate(eventDate)}`,
-            `DTEND:${formatDate(endDate)}`,
-            `SUMMARY:${cell.subject} (${cell.grade})`,
-            `DESCRIPTION:Professor: ${cell.teacherName}`,
-            'END:VEVENT'
-          ].join('\n'));
-        });
-      });
-
-      const icsContent = [
-        'BEGIN:VCALENDAR',
-        'VERSION:2.0',
-        'PRODID:-//HoraProfe//Grade//PT',
-        ...events,
-        'END:VCALENDAR'
-      ].join('\n');
-
-      const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${filename}.ics`;
       link.click();
       URL.revokeObjectURL(url);
     }
@@ -241,22 +337,12 @@ const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, isLoading, 
                 <button
                     onClick={() => handleDownload('csv')}
                     className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
-                    title="Baixar CSV/Excel"
+                    title="Baixar Excel/CSV"
                 >
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586L7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd" />
                     </svg>
                     Excel
-                </button>
-                <button
-                    onClick={() => handleDownload('ics')}
-                    className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-                    title="Baixar ICS (Calendário)"
-                >
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                    </svg>
-                    Calendário
                 </button>
             </div>
             
