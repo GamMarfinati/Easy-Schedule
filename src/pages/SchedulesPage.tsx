@@ -96,10 +96,22 @@ const SchedulesPage: React.FC = () => {
   }, []);
 
   const handlePresetSelect = useCallback((preset: PresetHorario) => {
-    setTimeSlots(preset.slots);
+    console.log('Aplicando preset:', preset.id, 'com', preset.slots?.length, 'slots');
+    
+    // Aplicar os slots do preset selecionado
+    if (preset.slots && preset.slots.length > 0) {
+      setTimeSlots(preset.slots);
+    }
+    
     setSelectedPresetId(preset.id);
     setError(null); // Limpar erro ao mudar preset
-  }, []);
+    
+    // Se o preset veio de uma fonte com todos os presets (erro de viabilidade),
+    // atualizar a lista local de presets para incluir todos
+    if (error?.viabilityData?.allPresets && error.viabilityData.allPresets.length > presets.length) {
+      setPresets(error.viabilityData.allPresets);
+    }
+  }, [error, presets.length]);
 
   const handleGenerateSchedule = async () => {
     if (!isPremium) {

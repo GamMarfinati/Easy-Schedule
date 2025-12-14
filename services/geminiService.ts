@@ -52,14 +52,14 @@ export const getSchedulePresets = async (): Promise<{ presets: PresetHorario[]; 
     const response = await api.get('/schedules/presets');
     return response.data;
   } catch (error) {
-    console.error("Erro ao buscar presets:", error);
-    // Retorna presets padrão em caso de erro
+    console.error("Erro ao buscar presets do servidor, usando fallback local:", error);
+    // Retorna todos os presets localmente em caso de erro (ex: não autenticado)
     return {
       presets: [
         {
           id: 'padrao-30',
           nome: '30 aulas/semana (6 por dia)',
-          descricao: 'Configuração padrão',
+          descricao: 'Configuração padrão - 6 aulas por dia, 5 dias',
           aulasSemanais: 30,
           aulasPorDia: 6,
           slots: [
@@ -69,6 +69,76 @@ export const getSchedulePresets = async (): Promise<{ presets: PresetHorario[]; 
             "10:00-10:50",
             "11:05-11:55",
             "11:55-12:45"
+          ]
+        },
+        {
+          id: 'estendido-35',
+          nome: '35 aulas/semana (7 por dia)',
+          descricao: 'Manhã completa + 1 período extra',
+          aulasSemanais: 35,
+          aulasPorDia: 7,
+          slots: [
+            "07:15-08:05",
+            "08:05-08:55",
+            "09:10-10:00",
+            "10:00-10:50",
+            "11:05-11:55",
+            "11:55-12:45",
+            "12:45-13:35"
+          ]
+        },
+        {
+          id: 'integral-40',
+          nome: '40 aulas/semana (8 por dia)',
+          descricao: 'Período integral básico',
+          aulasSemanais: 40,
+          aulasPorDia: 8,
+          slots: [
+            "07:15-08:05",
+            "08:05-08:55",
+            "09:10-10:00",
+            "10:00-10:50",
+            "11:05-11:55",
+            "11:55-12:45",
+            "14:00-14:50",
+            "14:50-15:40"
+          ]
+        },
+        {
+          id: 'integral-45',
+          nome: '45 aulas/semana (9 por dia)',
+          descricao: 'Período integral estendido',
+          aulasSemanais: 45,
+          aulasPorDia: 9,
+          slots: [
+            "07:15-08:05",
+            "08:05-08:55",
+            "09:10-10:00",
+            "10:00-10:50",
+            "11:05-11:55",
+            "11:55-12:45",
+            "14:00-14:50",
+            "14:50-15:40",
+            "15:55-16:45"
+          ]
+        },
+        {
+          id: 'integral-50',
+          nome: '50 aulas/semana (10 por dia)',
+          descricao: 'Período integral completo',
+          aulasSemanais: 50,
+          aulasPorDia: 10,
+          slots: [
+            "07:15-08:05",
+            "08:05-08:55",
+            "09:10-10:00",
+            "10:00-10:50",
+            "11:05-11:55",
+            "11:55-12:45",
+            "14:00-14:50",
+            "14:50-15:40",
+            "15:55-16:45",
+            "16:45-17:35"
           ]
         }
       ],
