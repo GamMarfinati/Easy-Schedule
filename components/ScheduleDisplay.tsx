@@ -7,6 +7,8 @@ interface ScheduleDisplayProps {
   isLoading: boolean;
   timeSlots: string[];
   teachers: Teacher[];
+  onSave?: (schedule: Schedule) => Promise<void>;
+  isSaving?: boolean;
 }
 
 type DisplayMode = 'geral' | 'turma' | 'professor';
@@ -46,7 +48,7 @@ const CellContent: React.FC<{
 };
 
 
-const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, isLoading, timeSlots, teachers }) => {
+const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, isLoading, timeSlots, teachers, onSave, isSaving }) => {
   const [displayMode, setDisplayMode] = useState<DisplayMode>(() => {
     const savedMode = typeof window !== 'undefined' ? localStorage.getItem('scheduleDisplayMode') : 'geral';
     if (savedMode === 'turma' || savedMode === 'professor' || savedMode === 'geral') {
@@ -322,8 +324,34 @@ const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, isLoading, 
                 </div>
             </div>
             
-            {/* Botões de Download */}
+            {/* Botões de Download e Salvar */}
             <div className="flex flex-wrap gap-2 self-center sm:self-start">
+                {onSave && (
+                    <button
+                        onClick={() => schedule && onSave(schedule)}
+                        disabled={isSaving}
+                        className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Salvar Grade"
+                    >
+                        {isSaving ? (
+                            <>
+                                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                </svg>
+                                Salvando...
+                            </>
+                        ) : (
+                            <>
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                                    <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
+                                </svg>
+                                Salvar Grade
+                            </>
+                        )}
+                    </button>
+                )}
                 <button
                     onClick={() => handleDownload('pdf')}
                     className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"

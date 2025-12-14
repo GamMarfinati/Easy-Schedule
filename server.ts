@@ -125,9 +125,11 @@ protectedRouter.use('/organization', protectedInvitationRouter);
 // Protect all API routes with tenant isolation and rate limiting
 import { generateScheduleAI } from './server/controllers/geminiController.js';
 import { exportSchedule } from './server/controllers/exportController.js';
+import schedulesRoutes from './server/routes/schedules.js';
 
 const apiRoutes = express.Router();
 apiRoutes.use(tenantMiddleware);
+apiRoutes.use('/schedules', schedulesRoutes); // CRUD para grades salvas
 apiRoutes.post('/schedules/generate', generateScheduleAI); // Validação removida - Gemini usa formato simples
 apiRoutes.get('/schedules/:id/export', exportSchedule);
 apiRoutes.post('/generate', adapter(generateHandler));

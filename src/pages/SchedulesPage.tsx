@@ -9,6 +9,7 @@ import TimeSlotManager from '../../components/TimeSlotManager';
 import { generateSchedule } from '../../services/geminiService';
 import DataImporter from '../../components/DataImporter';
 import { DEFAULT_TIME_SLOTS } from '../../constants';
+import api from '../services/api';
 
 interface ScheduleError {
   message: string;
@@ -26,6 +27,8 @@ const SchedulesPage: React.FC = () => {
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [timeSlots, setTimeSlots] = useState<string[]>(DEFAULT_TIME_SLOTS);
   const [permissionErrorLink, setPermissionErrorLink] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [generationCount, setGenerationCount] = useState(0);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   
   // TODO: Fetch subscription status from API context or user metadata
@@ -85,6 +88,7 @@ const SchedulesPage: React.FC = () => {
     try {
       const result = await generateSchedule(teachers, timeSlots);
       setSchedule(result);
+      setGenerationCount(prev => prev + 1);
     } catch (err) {
       if (err instanceof Error) {
         const errorMessage = err.message;
@@ -156,6 +160,35 @@ const SchedulesPage: React.FC = () => {
       }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSaveSchedule = async (scheduleToSave: Schedule) => {
+    setIsSaving(true);
+    try {
+      const scheduleName = prompt('Digite um nome para esta grade:', `Grade ${new Date().toLocaleDateString('pt-BR')}`);
+      if (!scheduleName) {
+        setIsSaving(false);
+        return;
+      }
+
+      await api.post('/schedules', {
+        name: scheduleName,
+        data: scheduleToSave,
+        metadata: {
+          generatedAt: new Date().toISOString(),
+          generationAttempts: generationCount,
+          teachersCount: teachers.length,
+          timeSlotsCount: timeSlots.length,
+        }
+      });
+
+      alert('Grade salva com sucesso! Você pode visualizá-la no Dashboard.');
+    } catch (err) {
+      console.error('Error saving schedule:', err);
+      alert('Erro ao salvar a grade. Tente novamente.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -243,6 +276,8 @@ const SchedulesPage: React.FC = () => {
             isLoading={isLoading}
             timeSlots={timeSlots}
             teachers={teachers}
+            onSave={handleSaveSchedule}
+            isSaving={isSaving}
           />
         </div>
       </div>
