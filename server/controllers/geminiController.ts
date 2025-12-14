@@ -10,6 +10,12 @@ import {
     Aula
 } from '../services/scheduler/validator.js';
 import { runGeneticScheduler } from '../services/scheduler/adapter.js';
+import { 
+    analisarViabilidade, 
+    formatarAnaliseParaResposta,
+    getPresetsDisponiveis,
+    PRESETS_HORARIOS 
+} from '../services/scheduler/viabilidade.js';
 
 const DAYS_OF_WEEK = [
     "Segunda-feira",
@@ -169,6 +175,45 @@ export const generateScheduleAI = async (req: Request, res: Response) => {
 
         // Converter para regras de validação
         const regrasValidacao: ProfessorRegra[] = converterParaRegras(cleanedTeachers);
+
+        // ============================================================
+        // PRÉ-VALIDAÇÃO DE VIABILIDADE
+        // Detecta problemas ANTES de tentar gerar, economizando tempo
+        // ============================================================
+        console.log(`[Scheduler] Analisando viabilidade...`);
+        const analiseViabilidade = analisarViabilidade(cleanedTeachers, timeSlots);
+        
+        if (!analiseViabilidade.viavel) {
+            console.log(`[Scheduler] ❌ Dados inviáveis! ${analiseViabilidade.problemas.filter(p => p.tipo === 'CRITICO').length} problema(s) crítico(s):`);
+            analiseViabilidade.problemas
+                .filter(p => p.tipo === 'CRITICO')
+                .forEach((p, i) => console.log(`  ${i + 1}. [${p.categoria}] ${p.mensagem}`));
+            
+            const resposta = formatarAnaliseParaResposta(analiseViabilidade);
+            return res.status(422).json({
+                error: resposta.error,
+                errorType: 'VIABILITY_ERROR',
+                details: resposta.details,
+                suggestion: resposta.suggestion,
+                statistics: resposta.statistics,
+                recommendedPreset: resposta.recommendedPreset,
+                allPresets: PRESETS_HORARIOS
+            });
+        }
+
+        // Log de estatísticas se viável
+        console.log(`[Scheduler] ✅ Dados viáveis!`);
+        console.log(`[Scheduler] Estatísticas:`);
+        console.log(`  - Total de aulas: ${analiseViabilidade.estatisticas.totalAulas}`);
+        console.log(`  - Turmas: ${analiseViabilidade.estatisticas.totalTurmas}`);
+        console.log(`  - Ocupação máxima: ${Math.round(analiseViabilidade.estatisticas.ocupacaoPercentual)}%`);
+
+        // Alertas (não impedem geração, apenas avisos)
+        const alertas = analiseViabilidade.problemas.filter(p => p.tipo === 'ALERTA');
+        if (alertas.length > 0) {
+            console.log(`[Scheduler] ⚠️ ${alertas.length} alerta(s) (não impedem geração):`);
+            alertas.forEach((a, i) => console.log(`  ${i + 1}. ${a.mensagem}`));
+        }
 
         // Schema de resposta para o Gemini
         const responseSchema = {
@@ -371,5 +416,54 @@ export const generateScheduleAI = async (req: Request, res: Response) => {
         }
 
         return res.status(500).json({ error: errorMessage });
+    }
+};
+
+/**
+ * Endpoint para retornar os presets de horários disponíveis
+ */
+export const getSchedulePresets = async (_req: Request, res: Response) => {
+    return res.status(200).json({
+        presets: PRESETS_HORARIOS,
+        default: 'padrao-30'
+    });
+};
+
+/**
+ * Endpoint para validar viabilidade SEM tentar gerar a grade
+ * Útil para dar feedback rápido ao usuário
+ */
+export const validateViability = async (req: Request, res: Response) => {
+    try {
+        const { teachers, timeSlots } = req.body;
+
+        if (!teachers || !Array.isArray(teachers)) {
+            return res.status(400).json({ error: "Dados de professores inválidos." });
+        }
+
+        if (!timeSlots || !Array.isArray(timeSlots)) {
+            return res.status(400).json({ error: "Dados de horários inválidos." });
+        }
+
+        const cleanedTeachers = teachers.map(({ name, subject, availabilityDays, classAssignments }: any) => ({
+            name,
+            subject,
+            availabilityDays,
+            classAssignments: classAssignments.map(({ grade, classCount }: any) => ({ grade, classCount }))
+        }));
+
+        const analise = analisarViabilidade(cleanedTeachers, timeSlots);
+
+        return res.status(200).json({
+            viable: analise.viavel,
+            problems: analise.problemas,
+            statistics: analise.estatisticas,
+            suggestions: analise.sugestoes,
+            recommendedPreset: analise.presetRecomendado
+        });
+
+    } catch (error) {
+        console.error("[Scheduler] Erro na validação de viabilidade:", error);
+        return res.status(500).json({ error: "Erro ao validar viabilidade." });
     }
 };

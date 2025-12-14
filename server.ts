@@ -123,14 +123,16 @@ protectedRouter.use('/organization', organizationRoutes);
 protectedRouter.use('/organization', protectedInvitationRouter);
 
 // Protect all API routes with tenant isolation and rate limiting
-import { generateScheduleAI } from './server/controllers/geminiController.js';
+import { generateScheduleAI, getSchedulePresets, validateViability } from './server/controllers/geminiController.js';
 import { exportSchedule } from './server/controllers/exportController.js';
 import schedulesRoutes from './server/routes/schedules.js';
 
 const apiRoutes = express.Router();
 apiRoutes.use(tenantMiddleware);
 apiRoutes.use('/schedules', schedulesRoutes); // CRUD para grades salvas
-apiRoutes.post('/schedules/generate', generateScheduleAI); // Validação removida - Gemini usa formato simples
+apiRoutes.post('/schedules/generate', generateScheduleAI); // Geração de grades com validação
+apiRoutes.post('/schedules/validate', validateViability); // Validação de viabilidade
+apiRoutes.get('/schedules/presets', getSchedulePresets); // Presets de horários
 apiRoutes.get('/schedules/:id/export', exportSchedule);
 apiRoutes.post('/generate', adapter(generateHandler));
 
@@ -141,7 +143,9 @@ protectedRouter.use(apiRoutes);
 // DEVE vir ANTES do protectedRouter para não passar pela autenticação
 if (process.env.NODE_ENV !== 'production') {
   app.post('/test/generate', generateScheduleAI);
-  console.log('⚠️  ROTA DE TESTE ATIVA: POST /test/generate');
+  app.post('/test/validate', validateViability);
+  app.get('/test/presets', getSchedulePresets);
+  console.log('⚠️  ROTAS DE TESTE ATIVAS: POST /test/generate, /test/validate, GET /test/presets');
 }
 
 app.use('/api', protectedRouter);
