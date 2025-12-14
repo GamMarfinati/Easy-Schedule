@@ -10,7 +10,10 @@ export const Header: React.FC = () => {
     <header className="flex items-center justify-between py-6 px-8 max-w-7xl mx-auto w-full bg-white border-b border-slate-100 sm:border-none">
       <div className="flex items-center gap-3">
         <Logo className="w-10 h-10 text-indigo-600" />
-        <span className="text-2xl font-bold text-slate-900">HoraProfe</span>
+        <span className="text-2xl font-bold">
+          <span className="text-slate-900">Hora</span>
+          <span className="text-indigo-600">Profe</span>
+        </span>
       </div>
 
       <nav className="hidden md:flex items-center gap-8">

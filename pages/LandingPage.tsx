@@ -181,13 +181,18 @@ const LandingPage: React.FC = () => {
       <footer className="bg-slate-900 text-white py-12">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="flex items-center gap-2 mb-4 md:mb-0">
-              <div className="bg-indigo-600 p-1.5 rounded-lg">
-                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <span className="text-xl font-bold">HoraProfe</span>
+            <div className="flex items-center gap-3 mb-4 md:mb-0">
+              {/* Logo 4 quadrados */}
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-indigo-400">
+                <rect x="5" y="5" width="6" height="6" rx="1.5" fill="currentColor"/>
+                <rect x="5" y="13" width="6" height="6" rx="1.5" fill="currentColor"/>
+                <rect x="13" y="13" width="6" height="6" rx="1.5" fill="currentColor"/>
+                <rect x="13" y="5" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="2.5"/>
+              </svg>
+              <span className="text-xl font-bold">
+                <span className="text-white">Hora</span>
+                <span className="text-indigo-400">Profe</span>
+              </span>
             </div>
             <div className="text-slate-400 text-sm">
               © 2025 HoraProfe. Todos os direitos reservados.
