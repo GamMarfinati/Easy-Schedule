@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import SubscriptionModal from '../../components/SubscriptionModal';
 import { Teacher, Schedule } from '../../types';
@@ -6,10 +6,11 @@ import TeacherForm from '../../components/TeacherForm';
 import ScheduleDisplay from '../../components/ScheduleDisplay';
 import TeacherCard from '../../components/TeacherCard';
 import TimeSlotManager from '../../components/TimeSlotManager';
-import { generateSchedule } from '../../services/geminiService';
+import { generateSchedule, getSchedulePresets, PresetHorario, ViabilityError } from '../../services/geminiService';
 import DataImporter from '../../components/DataImporter';
 import { DEFAULT_TIME_SLOTS } from '../../constants';
 import api from '../services/api';
+import ViabilityErrorDisplay from '../../components/ViabilityErrorDisplay';
 
 interface ScheduleError {
   message: string;
@@ -17,6 +18,8 @@ interface ScheduleError {
   conflictingGrades?: string[];
   conflictingDays?: string[];
   isConfigError?: boolean;
+  isViabilityError?: boolean;
+  viabilityData?: ViabilityError;
 }
 
 const SchedulesPage: React.FC = () => {
@@ -30,10 +33,31 @@ const SchedulesPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [generationCount, setGenerationCount] = useState(0);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [presets, setPresets] = useState<PresetHorario[]>([]);
+  const [selectedPresetId, setSelectedPresetId] = useState<string>('padrao-30');
   
   // TODO: Fetch subscription status from API context or user metadata
   const isPremium = true; // Temporary mock for testing
   const STRIPE_LINK = "https://buy.stripe.com/test_6oU6oB94Ab8WcGZ3xL5Ne00";
+
+  // Carregar presets ao montar o componente
+  useEffect(() => {
+    const loadPresets = async () => {
+      try {
+        const data = await getSchedulePresets();
+        setPresets(data.presets);
+        setSelectedPresetId(data.default);
+        // Aplicar preset padrão
+        const defaultPreset = data.presets.find(p => p.id === data.default);
+        if (defaultPreset) {
+          setTimeSlots(defaultPreset.slots);
+        }
+      } catch (err) {
+        console.error('Erro ao carregar presets:', err);
+      }
+    };
+    loadPresets();
+  }, []);
 
   const addTeacher = useCallback((newTeacherData: Omit<Teacher, 'id'>) => {
     const newTeacher: Teacher = { ...newTeacherData, id: crypto.randomUUID() };
@@ -71,6 +95,12 @@ const SchedulesPage: React.FC = () => {
     setEditingTeacher(null);
   }, []);
 
+  const handlePresetSelect = useCallback((preset: PresetHorario) => {
+    setTimeSlots(preset.slots);
+    setSelectedPresetId(preset.id);
+    setError(null); // Limpar erro ao mudar preset
+  }, []);
+
   const handleGenerateSchedule = async () => {
     if (!isPremium) {
       setIsSubscriptionModalOpen(true);
@@ -89,7 +119,18 @@ const SchedulesPage: React.FC = () => {
       const result = await generateSchedule(teachers, timeSlots);
       setSchedule(result);
       setGenerationCount(prev => prev + 1);
-    } catch (err) {
+    } catch (err: any) {
+      // Verificar se é erro de viabilidade
+      if (err.viabilityData) {
+        setError({
+          message: err.viabilityData.error,
+          isViabilityError: true,
+          viabilityData: err.viabilityData
+        });
+        setIsLoading(false);
+        return;
+      }
+
       if (err instanceof Error) {
         const errorMessage = err.message;
 
@@ -192,11 +233,65 @@ const SchedulesPage: React.FC = () => {
     }
   };
 
+  // Calcular estatísticas para exibição
+  const currentPreset = presets.find(p => p.id === selectedPresetId);
+  const totalAulas = teachers.reduce((sum, t) => 
+    sum + t.classAssignments.reduce((s, a) => s + a.classCount, 0), 0);
+  const turmasUnicas = new Set(teachers.flatMap(t => t.classAssignments.map(a => a.grade)));
+
   return (
     <div className="max-w-7xl mx-auto">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         <div className="lg:col-span-1 space-y-6">
           <DataImporter onImport={handleImport} />
+          
+          {/* Seletor de Preset */}
+          {presets.length > 0 && (
+            <div className="bg-white p-4 rounded-2xl shadow-lg">
+              <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+                <svg className="w-5 h-5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                </svg>
+                Configuração de Horários
+              </h3>
+              <select
+                value={selectedPresetId}
+                onChange={(e) => {
+                  const preset = presets.find(p => p.id === e.target.value);
+                  if (preset) handlePresetSelect(preset);
+                }}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              >
+                {presets.map(preset => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.nome}
+                  </option>
+                ))}
+              </select>
+              {currentPreset && (
+                <p className="text-sm text-gray-500 mt-2">{currentPreset.descricao}</p>
+              )}
+              
+              {/* Mini estatísticas */}
+              {teachers.length > 0 && (
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Total de aulas:</span>
+                    <span className={`font-bold ${totalAulas > (currentPreset?.aulasSemanais || 30) * turmasUnicas.size ? 'text-red-600' : 'text-green-600'}`}>
+                      {totalAulas}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm mt-1">
+                    <span className="text-gray-600">Slots disponíveis:</span>
+                    <span className="font-bold text-gray-800">
+                      {currentPreset?.aulasSemanais || 30} × {turmasUnicas.size} turmas
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <TimeSlotManager timeSlots={timeSlots} onTimeSlotsChange={setTimeSlots} />
           <TeacherForm
             onAddTeacher={addTeacher}
@@ -254,7 +349,22 @@ const SchedulesPage: React.FC = () => {
             </div>
           </div>
 
-          {error && (
+          {/* Erro de Viabilidade - Exibição Especial */}
+          {error?.isViabilityError && error.viabilityData && (
+            <ViabilityErrorDisplay
+              error={error.viabilityData.error}
+              details={error.viabilityData.details}
+              suggestion={error.viabilityData.suggestion}
+              statistics={error.viabilityData.statistics}
+              recommendedPreset={error.viabilityData.recommendedPreset}
+              allPresets={error.viabilityData.allPresets || presets}
+              onPresetSelect={handlePresetSelect}
+              onDismiss={() => setError(null)}
+            />
+          )}
+
+          {/* Erro Normal (não viabilidade) */}
+          {error && !error.isViabilityError && (
             <div className={`border-l-4 p-4 rounded-lg ${error.isConfigError ? 'bg-yellow-100 border-yellow-500 text-yellow-800' : 'bg-red-100 border-red-500 text-red-800'}`} role="alert">
               <p className="font-bold">{error.isConfigError ? 'Erro de Configuração' : 'Erro ao Gerar Quadro'}</p>
               <p className="whitespace-pre-wrap">{error.message}</p>

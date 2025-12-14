@@ -1,0 +1,178 @@
+import React from 'react';
+import { PresetHorario } from '../services/geminiService';
+
+interface ViabilityErrorDisplayProps {
+  error: string;
+  details: string[];
+  suggestion: string;
+  statistics: {
+    totalAulas: number;
+    totalTurmas: number;
+    slotsDisponiveis: number;
+    ocupacaoPercentual: number;
+    turmaComMaisAulas?: { nome: string; aulas: number };
+  };
+  recommendedPreset: PresetHorario | null;
+  allPresets: PresetHorario[];
+  onPresetSelect: (preset: PresetHorario) => void;
+  onDismiss: () => void;
+}
+
+const ViabilityErrorDisplay: React.FC<ViabilityErrorDisplayProps> = ({
+  error,
+  details,
+  suggestion,
+  statistics,
+  recommendedPreset,
+  allPresets,
+  onPresetSelect,
+  onDismiss
+}) => {
+  return (
+    <div className="bg-gradient-to-br from-red-50 to-orange-50 border border-red-200 rounded-2xl p-6 shadow-lg">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-red-100 rounded-full">
+            <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-red-800">Dados Impossíveis de Alocar</h3>
+            <p className="text-sm text-red-600">Detectamos problemas que impedem a geração da grade</p>
+          </div>
+        </div>
+        <button 
+          onClick={onDismiss}
+          className="text-gray-400 hover:text-gray-600 transition"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Estatísticas */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="bg-white/80 rounded-lg p-3 text-center shadow-sm">
+          <p className="text-2xl font-bold text-gray-800">{statistics.totalAulas}</p>
+          <p className="text-xs text-gray-500">Aulas Totais</p>
+        </div>
+        <div className="bg-white/80 rounded-lg p-3 text-center shadow-sm">
+          <p className="text-2xl font-bold text-gray-800">{statistics.totalTurmas}</p>
+          <p className="text-xs text-gray-500">Turmas</p>
+        </div>
+        <div className="bg-white/80 rounded-lg p-3 text-center shadow-sm">
+          <p className="text-2xl font-bold text-gray-800">{statistics.slotsDisponiveis}</p>
+          <p className="text-xs text-gray-500">Slots Disponíveis</p>
+        </div>
+        <div className={`rounded-lg p-3 text-center shadow-sm ${statistics.ocupacaoPercentual > 100 ? 'bg-red-100' : 'bg-green-100'}`}>
+          <p className={`text-2xl font-bold ${statistics.ocupacaoPercentual > 100 ? 'text-red-600' : 'text-green-600'}`}>
+            {statistics.ocupacaoPercentual}%
+          </p>
+          <p className={`text-xs ${statistics.ocupacaoPercentual > 100 ? 'text-red-500' : 'text-green-500'}`}>
+            Ocupação
+          </p>
+        </div>
+      </div>
+
+      {/* Lista de Problemas */}
+      <div className="mb-6">
+        <h4 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
+          <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+          Problemas Detectados ({details.length})
+        </h4>
+        <ul className="space-y-2">
+          {details.map((detail, index) => (
+            <li key={index} className="flex items-start gap-2 text-sm text-gray-700 bg-white/60 p-3 rounded-lg">
+              <span className="flex-shrink-0 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                {index + 1}
+              </span>
+              <span>{detail}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Sugestão */}
+      {suggestion && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <h4 className="font-semibold text-blue-800 mb-1 flex items-center gap-2">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            Sugestões
+          </h4>
+          <p className="text-sm text-blue-700">{suggestion}</p>
+        </div>
+      )}
+
+      {/* Preset Recomendado */}
+      {recommendedPreset && (
+        <div className="mb-6">
+          <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+            <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+            Configuração Recomendada
+          </h4>
+          <button
+            onClick={() => onPresetSelect(recommendedPreset)}
+            className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl p-4 text-left hover:from-green-600 hover:to-emerald-700 transition shadow-md"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-bold text-lg">{recommendedPreset.nome}</p>
+                <p className="text-green-100 text-sm">{recommendedPreset.descricao}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold">{recommendedPreset.aulasSemanais}</p>
+                <p className="text-xs text-green-100">aulas/semana</p>
+              </div>
+            </div>
+            <div className="mt-2 flex items-center gap-2 text-sm text-green-100">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+              Clique para aplicar esta configuração
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* Outros Presets */}
+      {allPresets && allPresets.length > 1 && (
+        <div>
+          <h4 className="font-semibold text-gray-800 mb-3">Outras Configurações Disponíveis</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {allPresets
+              .filter(p => p.id !== recommendedPreset?.id)
+              .map(preset => (
+                <button
+                  key={preset.id}
+                  onClick={() => onPresetSelect(preset)}
+                  className="bg-white border border-gray-200 rounded-lg p-3 text-left hover:border-purple-300 hover:shadow-md transition"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-800 text-sm">{preset.nome}</p>
+                      <p className="text-xs text-gray-500">{preset.descricao}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-purple-600">{preset.aulasPorDia}</p>
+                      <p className="text-xs text-gray-400">por dia</p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ViabilityErrorDisplay;
