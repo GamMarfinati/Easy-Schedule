@@ -29,6 +29,12 @@ const ViabilityErrorDisplay: React.FC<ViabilityErrorDisplayProps> = ({
   onDismiss
 }) => {
   const [isProblemsExpanded, setIsProblemsExpanded] = useState(false);
+  const [isSuggestionsExpanded, setIsSuggestionsExpanded] = useState(false);
+  
+  // Separar sugestões em tópicos (dividir por emoji ou pontuação)
+  const suggestionsList = suggestion
+    ? suggestion.split(/(?=📅|✂️|👨‍🏫|📆|🔄|⏰|📊|💡)/).filter(s => s.trim())
+    : [];
   
   return (
     <div className="bg-gradient-to-br from-red-50 to-orange-50 border border-red-200 rounded-2xl p-6 shadow-lg">
@@ -116,16 +122,39 @@ const ViabilityErrorDisplay: React.FC<ViabilityErrorDisplayProps> = ({
         </div>
       </div>
 
-      {/* Sugestão */}
-      {suggestion && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <h4 className="font-semibold text-blue-800 mb-1 flex items-center gap-2">
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+      {/* Sugestões - Colapsável */}
+      {suggestionsList.length > 0 && (
+        <div className="mb-6">
+          <button 
+            onClick={() => setIsSuggestionsExpanded(!isSuggestionsExpanded)}
+            className="w-full font-semibold text-blue-800 flex items-center justify-between gap-2 p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition-all cursor-pointer border border-blue-200 hover:border-blue-300 hover:shadow-sm"
+          >
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              <span>Sugestões ({suggestionsList.length})</span>
+            </div>
+            <svg 
+              className={`w-5 h-5 text-blue-500 transition-transform duration-200 ${isSuggestionsExpanded ? 'rotate-180' : ''}`} 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
-            Sugestões
-          </h4>
-          <p className="text-sm text-blue-700">{suggestion}</p>
+          </button>
+          
+          {/* Lista expandível */}
+          <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isSuggestionsExpanded ? 'max-h-[400px] opacity-100 mt-3' : 'max-h-0 opacity-0'}`}>
+            <ul className="space-y-2">
+              {suggestionsList.map((sugestao, index) => (
+                <li key={index} className="flex items-start gap-2 text-sm text-blue-700 bg-white/80 p-3 rounded-lg border border-blue-100">
+                  <span>{sugestao.trim()}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
 
