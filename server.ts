@@ -127,12 +127,15 @@ import { generateScheduleAI, getSchedulePresets, validateViability } from './ser
 import { exportSchedule } from './server/controllers/exportController.js';
 import schedulesRoutes from './server/routes/schedules.js';
 
+// 📋 Rota PÚBLICA para presets (não requer autenticação)
+// Deve vir ANTES do protectedRouter
+app.get('/api/schedules/presets', getSchedulePresets);
+
 const apiRoutes = express.Router();
 apiRoutes.use(tenantMiddleware);
 apiRoutes.use('/schedules', schedulesRoutes); // CRUD para grades salvas
 apiRoutes.post('/schedules/generate', generateScheduleAI); // Geração de grades com validação
 apiRoutes.post('/schedules/validate', validateViability); // Validação de viabilidade
-apiRoutes.get('/schedules/presets', getSchedulePresets); // Presets de horários
 apiRoutes.get('/schedules/:id/export', exportSchedule);
 apiRoutes.post('/generate', adapter(generateHandler));
 
