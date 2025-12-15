@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import SubscriptionModal from '../../components/SubscriptionModal';
 import { Teacher, Schedule } from '../../types';
@@ -36,6 +36,9 @@ const SchedulesPage: React.FC = () => {
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [presets, setPresets] = useState<PresetHorario[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<string>('padrao-30');
+  
+  // Ref para o formulário de professor (para scroll ao editar)
+  const teacherFormRef = useRef<HTMLDivElement>(null);
   
   // TODO: Fetch subscription status from API context or user metadata
   const isPremium = true; // Temporary mock for testing
@@ -83,7 +86,10 @@ const SchedulesPage: React.FC = () => {
     const teacherToEdit = teachers.find(t => t.id === id);
     if (teacherToEdit) {
       setEditingTeacher(teacherToEdit);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      // Scroll suave para o formulário de edição
+      setTimeout(() => {
+        teacherFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
     }
   }, [teachers]);
 
@@ -144,6 +150,39 @@ const SchedulesPage: React.FC = () => {
       }
     }
   }, [error, presets, teachers, timeSlots]);
+
+  // Função para re-validar manualmente (botão de refresh)
+  const handleRefreshViability = useCallback(async () => {
+    if (teachers.length === 0) return;
+    
+    setIsValidating(true);
+    try {
+      const validation = await validateViability(teachers, timeSlots);
+      
+      if (!validation.viable) {
+        setError({
+          message: `Análise atualizada: ${validation.problems.filter((p: any) => p.tipo === 'CRITICO').length} problema(s) crítico(s).`,
+          isViabilityError: true,
+          viabilityData: {
+            error: `Análise atualizada: ${validation.problems.filter((p: any) => p.tipo === 'CRITICO').length} problema(s) crítico(s) encontrado(s).`,
+            errorType: 'VIABILITY_ERROR',
+            details: validation.problems.filter((p: any) => p.tipo === 'CRITICO').map((p: any) => p.mensagem),
+            suggestion: validation.suggestions.join(' '),
+            statistics: validation.statistics,
+            recommendedPreset: validation.recommendedPreset,
+            allPresets: presets
+          }
+        });
+      } else {
+        // Dados agora são viáveis! Limpar erro
+        setError(null);
+      }
+    } catch (err) {
+      console.error('Erro ao validar:', err);
+    } finally {
+      setIsValidating(false);
+    }
+  }, [teachers, timeSlots, presets]);
 
   const handleGenerateSchedule = async () => {
     if (!isPremium) {
@@ -337,12 +376,14 @@ const SchedulesPage: React.FC = () => {
           )}
 
           <TimeSlotManager timeSlots={timeSlots} onTimeSlotsChange={setTimeSlots} />
-          <TeacherForm
-            onAddTeacher={addTeacher}
-            teacherToEdit={editingTeacher}
-            onUpdateTeacher={handleUpdateTeacher}
-            onCancelEdit={handleCancelEdit}
-          />
+          <div ref={teacherFormRef}>
+            <TeacherForm
+              onAddTeacher={addTeacher}
+              teacherToEdit={editingTeacher}
+              onUpdateTeacher={handleUpdateTeacher}
+              onCancelEdit={handleCancelEdit}
+            />
+          </div>
           {teachers.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-xl font-bold text-gray-800">Professores Adicionados</h3>
@@ -412,6 +453,7 @@ const SchedulesPage: React.FC = () => {
               allPresets={error.viabilityData.allPresets || presets}
               onPresetSelect={handlePresetSelect}
               onDismiss={() => setError(null)}
+              onRefresh={handleRefreshViability}
             />
           )}
 
