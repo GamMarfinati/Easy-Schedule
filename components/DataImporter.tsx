@@ -5,30 +5,137 @@ interface DataImporterProps {
   onImport: (teachers: Teacher[]) => void;
 }
 
+// Dataset de exemplo VIÁVEL - todos os professores têm dias >= turmas
 const SAMPLE_TEACHERS_DATA = [
     {
-        name: 'Carlos Andrade',
-        subject: 'Matemática',
-        availabilityDays: ['Segunda-feira', 'Quarta-feira', 'Sexta-feira'],
-        classAssignments: [ { grade: '9º Ano EF', classCount: 4 }, { grade: '1º Ano EM', classCount: 5 } ],
-    },
-    {
-        name: 'Beatriz Lima',
+        name: 'Ana Pereira',
         subject: 'Português',
-        availabilityDays: ['Terça-feira', 'Quinta-feira', 'Sexta-feira'],
-        classAssignments: [ { grade: '9º Ano EF', classCount: 5 }, { grade: '1º Ano EM', classCount: 5 } ],
+        availabilityDays: ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'],
+        classAssignments: [
+            { grade: '1º Ano EM', classCount: 4 },
+            { grade: '2º Ano EM', classCount: 4 },
+            { grade: '3º Ano EM', classCount: 4 }
+        ],
     },
     {
-        name: 'Fernanda Costa',
+        name: 'Carlos Silva',
+        subject: 'Matemática',
+        availabilityDays: ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'],
+        classAssignments: [
+            { grade: '1º Ano EM', classCount: 4 },
+            { grade: '2º Ano EM', classCount: 4 },
+            { grade: '3º Ano EM', classCount: 4 }
+        ],
+    },
+    {
+        name: 'Beatriz Costa',
         subject: 'História',
-        availabilityDays: ['Segunda-feira', 'Terça-feira', 'Quarta-feira'],
-        classAssignments: [ { grade: '9º Ano EF', classCount: 3 }, { grade: '1º Ano EM', classCount: 3 }, { grade: '2º Ano EM', classCount: 4 } ],
+        availabilityDays: ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira'],
+        classAssignments: [
+            { grade: '1º Ano EM', classCount: 2 },
+            { grade: '2º Ano EM', classCount: 2 },
+            { grade: '3º Ano EM', classCount: 2 }
+        ],
     },
     {
-        name: 'Ricardo Alves',
+        name: 'Daniel Oliveira',
         subject: 'Geografia',
-        availabilityDays: ['Quarta-feira', 'Quinta-feira'],
-        classAssignments: [ { grade: '9º Ano EF', classCount: 3 }, { grade: '1º Ano EM', classCount: 3 } ],
+        availabilityDays: ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'],
+        classAssignments: [
+            { grade: '1º Ano EM', classCount: 2 },
+            { grade: '2º Ano EM', classCount: 2 },
+            { grade: '3º Ano EM', classCount: 2 }
+        ],
+    },
+    {
+        name: 'Eduardo Santos',
+        subject: 'Física',
+        availabilityDays: ['Segunda-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'],
+        classAssignments: [
+            { grade: '1º Ano EM', classCount: 2 },
+            { grade: '2º Ano EM', classCount: 2 },
+            { grade: '3º Ano EM', classCount: 2 }
+        ],
+    },
+    {
+        name: 'Fernanda Lima',
+        subject: 'Química',
+        availabilityDays: ['Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'],
+        classAssignments: [
+            { grade: '1º Ano EM', classCount: 2 },
+            { grade: '2º Ano EM', classCount: 2 },
+            { grade: '3º Ano EM', classCount: 2 }
+        ],
+    },
+    {
+        name: 'Gabriel Martins',
+        subject: 'Biologia',
+        availabilityDays: ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira'],
+        classAssignments: [
+            { grade: '1º Ano EM', classCount: 2 },
+            { grade: '2º Ano EM', classCount: 2 },
+            { grade: '3º Ano EM', classCount: 2 }
+        ],
+    },
+    {
+        name: 'Helena Rocha',
+        subject: 'Inglês',
+        availabilityDays: ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'],
+        classAssignments: [
+            { grade: '1º Ano EM', classCount: 3 },
+            { grade: '2º Ano EM', classCount: 3 },
+            { grade: '3º Ano EM', classCount: 3 }
+        ],
+    },
+    {
+        name: 'Igor Almeida',
+        subject: 'Educação Física',
+        availabilityDays: ['Segunda-feira', 'Terça-feira', 'Quinta-feira', 'Sexta-feira'],
+        classAssignments: [
+            { grade: '1º Ano EM', classCount: 2 },
+            { grade: '2º Ano EM', classCount: 2 },
+            { grade: '3º Ano EM', classCount: 2 }
+        ],
+    },
+    {
+        name: 'Julia Ribeiro',
+        subject: 'Artes',
+        availabilityDays: ['Quarta-feira', 'Quinta-feira', 'Sexta-feira'],
+        classAssignments: [
+            { grade: '1º Ano EM', classCount: 1 },
+            { grade: '2º Ano EM', classCount: 1 },
+            { grade: '3º Ano EM', classCount: 1 }
+        ],
+    },
+    {
+        name: 'Marcos Santos',
+        subject: 'Filosofia',
+        availabilityDays: ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira'],
+        classAssignments: [
+            { grade: '1º Ano EM', classCount: 2 },
+            { grade: '2º Ano EM', classCount: 2 },
+            { grade: '3º Ano EM', classCount: 2 }
+        ],
+    },
+    {
+        name: 'Patricia Lima',
+        subject: 'Sociologia',
+        availabilityDays: ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Sexta-feira'],
+        classAssignments: [
+            { grade: '1º Ano EM', classCount: 2 },
+            { grade: '2º Ano EM', classCount: 2 },
+            { grade: '3º Ano EM', classCount: 2 }
+        ],
+    },
+    {
+        name: 'Roberto Alves',
+        subject: 'Redação',
+        availabilityDays: ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'],
+        classAssignments: [
+            { grade: '1º Ano EM', classCount: 2 },
+            { grade: '2º Ano EM', classCount: 2 },
+            { grade: '3º Ano EM', classCount: 2 }
+        ],
     },
 ];
 
