@@ -49,7 +49,13 @@ export function convertToGeneticInput(
   frontendTeachers: FrontendTeacher[],
   timeSlots: string[]
 ): ScheduleInput {
-  const numPeriods = timeSlots.length;
+  // Filtrar slots de pausa (Intervalo, Almoço, etc.)
+  const pauseKeywords = ['intervalo', 'almoço', 'almoco', 'recreio', 'pausa', 'lanche'];
+  const validSlots = timeSlots.filter(slot => 
+    !pauseKeywords.some(keyword => slot.toLowerCase().includes(keyword))
+  );
+  
+  const numPeriods = validSlots.length;
 
   // Extrair todas as turmas únicas
   const gradesSet = new Set<string>();
@@ -109,8 +115,11 @@ export function convertToGeneticInput(
     preferences: {
       min_gaps: true,
       group_labs: false
-    }
-  };
+    },
+    // Guardar mapeamento de slots válidos para reconstrução
+    validSlotIndices: validSlots.map((_, i) => i),
+    validSlotNames: validSlots
+  } as ScheduleInput & { validSlotIndices: number[]; validSlotNames: string[] };
 }
 
 /**
@@ -118,7 +127,7 @@ export function convertToGeneticInput(
  */
 export function convertFromGeneticOutput(
   solution: ScheduleSolution,
-  input: ScheduleInput,
+  input: ScheduleInput & { validSlotNames?: string[] },
   frontendTeachers: FrontendTeacher[],
   timeSlots: string[]
 ): any[] {
@@ -134,12 +143,19 @@ export function convertFromGeneticOutput(
     classMap.set(c.id, c.name);
   });
 
+  // Filtrar slots de pausa para mapeamento correto
+  const pauseKeywords = ['intervalo', 'almoço', 'almoco', 'recreio', 'pausa', 'lanche'];
+  const validSlots = input.validSlotNames || timeSlots.filter(slot => 
+    !pauseKeywords.some(keyword => slot.toLowerCase().includes(keyword))
+  );
+
   // Converter lessons para formato flat
   return solution.schedule.map(lesson => {
     const teacher = teacherMap.get(lesson.teacher_id);
     const gradeName = classMap.get(lesson.class_id);
     const dayFull = DAY_MAP_REVERSE[lesson.day] || lesson.day;
-    const timeSlot = timeSlots[lesson.period - 1] || `Período ${lesson.period}`;
+    // Período 1 no algoritmo = primeiro slot válido (não pausa)
+    const timeSlot = validSlots[lesson.period - 1] || `Período ${lesson.period}`;
 
     return {
       day: dayFull,
@@ -635,62 +651,75 @@ class GeneticSchedulerEnhanced {
       }
     });
     
-    // Penalizar gaps: cada período vago custa 3 pontos
-    score -= totalGaps * 3;
+    // Penalizar gaps: cada período vago custa 5 pontos (aumentado)
+    score -= totalGaps * 5;
 
-    // Constraint 5: CONCENTRAÇÃO DE AULAS - Penalizar dias com poucas aulas
-    // Professor não deve ir à escola para dar 1-2 aulas (não compensa financeiramente)
+    // Constraint 5: CONCENTRAÇÃO DE AULAS - Calcular dias MÍNIMOS necessários
+    // Se um professor tem 12 aulas e cabem 6/dia, ele deve trabalhar 2 dias, não 5!
     const teacherDayCount = new Map<string, number>();
+    const teacherTotalLessons = new Map<string, number>();
+    
     schedule.forEach(lesson => {
       const key = `${lesson.teacher_id}-${lesson.day}`;
       teacherDayCount.set(key, (teacherDayCount.get(key) || 0) + 1);
+      teacherTotalLessons.set(lesson.teacher_id, (teacherTotalLessons.get(lesson.teacher_id) || 0) + 1);
     });
     
-    let lowDayPenalty = 0;
-    let highDayBonus = 0;
-    const teacherDays = new Map<string, number>(); // Conta quantos dias cada professor trabalha
-    
+    // Calcular quantos dias cada professor trabalha
+    const teacherDays = new Map<string, number>();
     teacherDayCount.forEach((count, key) => {
       const teacherId = key.split('-')[0];
       teacherDays.set(teacherId, (teacherDays.get(teacherId) || 0) + 1);
+    });
+    
+    let concentrationScore = 0;
+    const periodsPerDay = this.input.periods; // aulas por dia
+    
+    teacherTotalLessons.forEach((totalLessons, teacherId) => {
+      const actualDays = teacherDays.get(teacherId) || 1;
+      // Calcular o número MÍNIMO de dias necessários
+      const minDaysNeeded = Math.ceil(totalLessons / periodsPerDay);
       
-      // Penalizar dias com apenas 1 aula (muito ruim para o professor)
+      // BÔNUS se está usando o mínimo de dias necessário
+      if (actualDays === minDaysNeeded) {
+        concentrationScore += 15; // Grande bônus por eficiência
+      }
+      // Pequeno bônus se está usando 1 dia a mais que o mínimo
+      else if (actualDays === minDaysNeeded + 1) {
+        concentrationScore += 5;
+      }
+      // PENALIDADE por cada dia extra além do mínimo
+      else if (actualDays > minDaysNeeded + 1) {
+        const extraDays = actualDays - minDaysNeeded;
+        concentrationScore -= extraDays * 8;
+      }
+    });
+    
+    score += concentrationScore;
+    
+    // Constraint 6: Penalizar dias com POUCAS aulas (ainda importante)
+    let lowDayPenalty = 0;
+    let highDayBonus = 0;
+    
+    teacherDayCount.forEach((count, key) => {
+      // Penalizar dias com apenas 1 aula (muito ruim)
       if (count === 1) {
-        lowDayPenalty += 6; // Penalidade alta
+        lowDayPenalty += 10; // Penalidade MUITO alta
       }
-      // Penalizar dias com 2 aulas (ainda ruim)
+      // Penalizar dias com 2 aulas (ruim)
       else if (count === 2) {
-        lowDayPenalty += 3;
+        lowDayPenalty += 5;
       }
-      // Bônus para dias com 3+ aulas (bom)
-      else if (count >= 3) {
-        highDayBonus += 2;
-      }
-      // Bônus extra para dias com 4+ aulas (muito bom)
-      if (count >= 4) {
+      // Bônus para dias cheios (5-6 aulas)
+      if (count >= 5) {
+        highDayBonus += 5;
+      } else if (count >= 4) {
         highDayBonus += 3;
       }
     });
     
     score -= lowDayPenalty;
     score += highDayBonus;
-    
-    // Constraint 6: MINIMIZAR DIAS DE TRABALHO
-    // Preferir que um professor trabalhe em menos dias com mais aulas por dia
-    let minDaysBonus = 0;
-    teacherDays.forEach((numDays, teacherId) => {
-      // Se professor trabalha em poucos dias (concentrado), dar bônus
-      if (numDays <= 2) {
-        minDaysBonus += 4;
-      } else if (numDays <= 3) {
-        minDaysBonus += 2;
-      }
-      // Se professor trabalha todos os 5 dias, não é ideal
-      if (numDays >= 5) {
-        minDaysBonus -= 2;
-      }
-    });
-    score += minDaysBonus;
 
     // Bonus: Distribuição equilibrada de aulas por dia (global da escola)
     const lessonsPerDay = new Map<string, number>();
