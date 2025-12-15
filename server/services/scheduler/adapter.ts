@@ -279,6 +279,11 @@ export function runGeneticScheduler(
     }
 
     console.log(`[GeneticScheduler] Tentativa ${attempt} falhou com ${bestValidation.erros.length} erros`);
+    // Mostrar erros da primeira tentativa para debug
+    if (attempt === 1) {
+      console.log(`[GeneticScheduler] Erros da primeira tentativa:`);
+      bestValidation.erros.slice(0, 10).forEach((erro, i) => console.log(`  ${i + 1}. ${erro}`));
+    }
   }
 
   // Retornar melhor solução encontrada (mesmo inválida) para feedback
