@@ -83,10 +83,16 @@ REGRAS CRÍTICAS (VIOLAÇÃO = FALHA):
 4. Professores só podem ser alocados em seus dias disponíveis
 5. Sua resposta DEVE SER APENAS JSON válido, sem texto adicional
 
+OTIMIZAÇÃO IMPORTANTE:
+6. MINIMIZE as janelas (gaps) para os professores - aulas do mesmo professor no mesmo dia devem ser CONSECUTIVAS
+   Exemplo BOM: Professor A na Segunda: 1ª, 2ª, 3ª aula (sem janelas)
+   Exemplo RUIM: Professor A na Segunda: 1ª, 3ª, 5ª aula (2 janelas - evitar!)
+
 ANTES de gerar a resposta, VERIFIQUE internamente:
 - Contagem de aulas por professor por turma
 - Ausência de conflitos de horário
 - Respeito aos dias de disponibilidade
+- Aulas do mesmo professor agrupadas (consecutivas) no dia
 `;
 
 /**

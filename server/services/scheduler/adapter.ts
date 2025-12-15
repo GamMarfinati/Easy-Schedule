@@ -373,7 +373,7 @@ class GeneticSchedulerEnhanced {
         const teacher = this.input.teachers.find(t => t.id === sub.teacher_id);
         let assignedCount = 0;
 
-        // Tentar atribuir aulas respeitando disponibilidade
+        // Tentar atribuir aulas respeitando disponibilidade E preferindo slots consecutivos
         for (let attempt = 0; attempt < sub.hours_per_week * 10 && assignedCount < sub.hours_per_week; attempt++) {
           // Escolher slot disponível
           const availableSlots = teacher?.disponibility || [];
@@ -394,28 +394,98 @@ class GeneticSchedulerEnhanced {
             continue;
           }
 
-          // Escolher slot aleatório da disponibilidade
-          const shuffledSlots = [...availableSlots].sort(() => Math.random() - 0.5);
-          
-          for (const slot of shuffledSlots) {
-            const key = `${slot.day}-${slot.period}`;
-            const occupied = occupiedSlots.get(key)!;
-            
-            // Verificar se professor e turma estão livres
-            if (!occupied.has(sub.teacher_id) && !occupied.has(cls.id)) {
-              lessons.push({
-                day: slot.day,
-                period: slot.period,
-                class_id: cls.id,
-                subject: sub.name,
-                teacher_id: sub.teacher_id,
-              });
-              
-              occupied.add(sub.teacher_id);
-              occupied.add(cls.id);
-              assignedCount++;
-              break;
+          // Agrupar slots por dia para preferir consecutivos
+          const slotsByDay = new Map<string, { day: string; period: number }[]>();
+          availableSlots.forEach(slot => {
+            if (!slotsByDay.has(slot.day)) {
+              slotsByDay.set(slot.day, []);
             }
+            slotsByDay.get(slot.day)!.push(slot);
+          });
+          
+          // Ordenar slots de cada dia por período
+          slotsByDay.forEach(slots => slots.sort((a, b) => a.period - b.period));
+          
+          // Priorizar dias onde já temos aulas deste professor (para agrupar)
+          const daysWithLessons = lessons
+            .filter(l => l.teacher_id === sub.teacher_id)
+            .map(l => l.day);
+          
+          const dayOrder = [...slotsByDay.keys()].sort((a, b) => {
+            const aCount = daysWithLessons.filter(d => d === a).length;
+            const bCount = daysWithLessons.filter(d => d === b).length;
+            return bCount - aCount; // Dias com mais aulas primeiro
+          });
+          
+          let allocated = false;
+          
+          for (const targetDay of dayOrder) {
+            const daySlots = slotsByDay.get(targetDay) || [];
+            
+            // Encontrar slots consecutivos aos já alocados neste dia
+            const existingPeriods = lessons
+              .filter(l => l.teacher_id === sub.teacher_id && l.day === targetDay)
+              .map(l => l.period)
+              .sort((a, b) => a - b);
+            
+            // Se já tem aulas neste dia, preferir slot adjacente
+            const preferredPeriods: number[] = [];
+            if (existingPeriods.length > 0) {
+              const minP = Math.min(...existingPeriods);
+              const maxP = Math.max(...existingPeriods);
+              if (minP > 1) preferredPeriods.push(minP - 1);
+              if (maxP < this.input.periods) preferredPeriods.push(maxP + 1);
+            }
+            
+            // Tentar primeiro os slots adjacentes
+            for (const slot of daySlots) {
+              if (preferredPeriods.includes(slot.period) || preferredPeriods.length === 0) {
+                const key = `${slot.day}-${slot.period}`;
+                const occupied = occupiedSlots.get(key)!;
+                
+                if (!occupied.has(sub.teacher_id) && !occupied.has(cls.id)) {
+                  lessons.push({
+                    day: slot.day,
+                    period: slot.period,
+                    class_id: cls.id,
+                    subject: sub.name,
+                    teacher_id: sub.teacher_id,
+                  });
+                  
+                  occupied.add(sub.teacher_id);
+                  occupied.add(cls.id);
+                  assignedCount++;
+                  allocated = true;
+                  break;
+                }
+              }
+            }
+            
+            if (allocated) break;
+            
+            // Fallback: qualquer slot disponível neste dia
+            for (const slot of daySlots) {
+              const key = `${slot.day}-${slot.period}`;
+              const occupied = occupiedSlots.get(key)!;
+              
+              if (!occupied.has(sub.teacher_id) && !occupied.has(cls.id)) {
+                lessons.push({
+                  day: slot.day,
+                  period: slot.period,
+                  class_id: cls.id,
+                  subject: sub.name,
+                  teacher_id: sub.teacher_id,
+                });
+                
+                occupied.add(sub.teacher_id);
+                occupied.add(cls.id);
+                assignedCount++;
+                allocated = true;
+                break;
+              }
+            }
+            
+            if (allocated) break;
           }
         }
 
@@ -540,6 +610,34 @@ class GeneticSchedulerEnhanced {
       }
     });
 
+    // Constraint 4: GAPS (janelas) - Penalizar aulas não consecutivas do mesmo professor
+    // Agrupa aulas por professor-dia
+    const teacherDayLessons = new Map<string, number[]>();
+    schedule.forEach(lesson => {
+      const key = `${lesson.teacher_id}-${lesson.day}`;
+      if (!teacherDayLessons.has(key)) {
+        teacherDayLessons.set(key, []);
+      }
+      teacherDayLessons.get(key)!.push(lesson.period);
+    });
+    
+    // Para cada professor-dia, contar gaps
+    let totalGaps = 0;
+    teacherDayLessons.forEach((periods, key) => {
+      if (periods.length > 1) {
+        periods.sort((a, b) => a - b);
+        for (let i = 1; i < periods.length; i++) {
+          const gap = periods[i] - periods[i-1] - 1;
+          if (gap > 0) {
+            totalGaps += gap;
+          }
+        }
+      }
+    });
+    
+    // Penalizar gaps: cada período vago custa 3 pontos
+    score -= totalGaps * 3;
+
     // Bonus: Distribuição equilibrada de aulas por dia
     const lessonsPerDay = new Map<string, number>();
     schedule.forEach(l => {
@@ -552,6 +650,20 @@ class GeneticSchedulerEnhanced {
       const variance = values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length;
       score += Math.max(0, 10 - variance); // Bonus por distribuição equilibrada
     }
+    
+    // Bonus: Aulas consecutivas do mesmo professor (compactação)
+    let consecutiveBonus = 0;
+    teacherDayLessons.forEach(periods => {
+      if (periods.length > 1) {
+        periods.sort((a, b) => a - b);
+        for (let i = 1; i < periods.length; i++) {
+          if (periods[i] - periods[i-1] === 1) {
+            consecutiveBonus += 2; // Bônus por cada par consecutivo
+          }
+        }
+      }
+    });
+    score += consecutiveBonus;
 
     return Math.max(0, score);
   }
