@@ -199,9 +199,9 @@ export function runGeneticScheduler(
   validationResult: ValidacaoResultado | null;
 } {
   const {
-    populationSize = 100,
-    generations = 200,
-    maxAttempts = 3
+    populationSize = 200,  // Aumentado de 100 para 200
+    generations = 500,     // Aumentado de 200 para 500
+    maxAttempts = 50       // Aumentado de 3 para 50
   } = options;
 
   console.log(`[GeneticScheduler] Iniciando com ${frontendTeachers.length} professores`);

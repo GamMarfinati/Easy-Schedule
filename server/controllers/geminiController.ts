@@ -383,10 +383,29 @@ export const generateScheduleAI = async (req: Request, res: Response) => {
                 ...(geneticResult.validationResult?.erros || [])
             ].filter((v, i, a) => a.indexOf(v) === i).slice(0, 10); // Remover duplicatas e limitar
 
+            // Analisar os erros para identificar professores problemáticos
+            const professorProblems = new Map<string, string[]>();
+            allErrors.forEach(erro => {
+                const match = erro.match(/^(\w+\s+\w+)/);
+                if (match) {
+                    const prof = match[1];
+                    if (!professorProblems.has(prof)) professorProblems.set(prof, []);
+                    professorProblems.get(prof)!.push(erro);
+                }
+            });
+
+            // Gerar sugestão específica
+            const professorList = Array.from(professorProblems.keys()).slice(0, 3).join(', ');
+            const suggestion = professorList
+                ? `Professores com problemas: ${professorList}. Edite-os para adicionar mais dias de disponibilidade ou reduzir sua carga horária.`
+                : "As restrições podem ser muito conflitantes. Tente: 1) Ampliar dias disponíveis dos professores, 2) Reduzir carga horária, ou 3) Dividir em menos turmas.";
+
             return res.status(422).json({ 
                 error: `Não foi possível gerar uma grade válida. Tentativas: IA (${MAX_RETRY_ATTEMPTS}), Genético (${geneticResult.attempts}).`,
                 details: allErrors.slice(0, 5),
-                suggestion: "As restrições podem ser muito conflitantes. Tente: 1) Ampliar dias disponíveis dos professores, 2) Reduzir carga horária, ou 3) Dividir em menos turmas."
+                suggestion,
+                isViabilityError: true,
+                requiresDataFix: true
             });
 
         } catch (geneticError) {
@@ -396,7 +415,9 @@ export const generateScheduleAI = async (req: Request, res: Response) => {
             return res.status(422).json({ 
                 error: `Não foi possível gerar uma grade válida após ${MAX_RETRY_ATTEMPTS} tentativas.`,
                 details: validationResult.erros.slice(0, 5),
-                suggestion: "Verifique se as restrições de disponibilidade e carga horária são compatíveis."
+                suggestion: "Verifique se as restrições de disponibilidade e carga horária são compatíveis.",
+                isViabilityError: true,
+                requiresDataFix: true
             });
         }
 

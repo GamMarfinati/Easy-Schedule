@@ -265,16 +265,18 @@ export function analisarViabilidade(
       });
     } 
     // REGRA 2: Professor em múltiplas turmas com poucos dias (crítico)
-    // Um professor com poucas disponibilidades lecionando em 3+ turmas causa conflitos inevitáveis
-    else if (numTurmas >= 3 && diasDisponiveis <= 2) {
+    // Um professor com N turmas precisa de pelo menos N dias para evitar bilocação
+    // Ex: 3 turmas = precisa de pelo menos 3 dias de disponibilidade
+    else if (numTurmas >= 2 && diasDisponiveis < numTurmas) {
       const todosDias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
       const diasIndisponiveis = todosDias.filter(d => !teacher.availabilityDays.includes(d));
+      const diasFaltando = numTurmas - diasDisponiveis;
       
       problemas.push({
         tipo: 'CRITICO',
         categoria: 'DISPONIBILIDADE',
         mensagem: `${teacher.name} (${teacher.subject}): leciona em ${numTurmas} turmas mas só tem ${diasDisponiveis} dias disponíveis.`,
-        detalhes: `SOLUÇÃO: Adicione mais dias de disponibilidade [${diasIndisponiveis.slice(0, 2).join(', ')}] para evitar conflitos entre turmas.`
+        detalhes: `SOLUÇÃO: Adicione mais ${diasFaltando} dia(s) [${diasIndisponiveis.slice(0, diasFaltando).join(', ')}] para evitar conflitos entre turmas.`
       });
       
       professoresComProblema.push({
@@ -283,8 +285,19 @@ export function analisarViabilidade(
         aulas: totalAulasProf,
         slots: slotsProf,
         dias: teacher.availabilityDays,
-        diasNecessarios: Math.max(3, diasNecessarios),
+        diasNecessarios: numTurmas,
         turmas: numTurmas
+      });
+    }
+    // REGRA 2b: Mesmo com dias suficientes, verificar se há aulas demais por dia
+    // Ex: 12 aulas em 3 dias = 4 aulas/dia, mas se tem 3 turmas = risco alto
+    else if (numTurmas >= 2 && (totalAulasProf / diasDisponiveis) > (numSlotsDia * 0.6)) {
+      const aulasPorDia = Math.ceil(totalAulasProf / diasDisponiveis);
+      problemas.push({
+        tipo: 'ALERTA',
+        categoria: 'DISPONIBILIDADE',
+        mensagem: `${teacher.name} (${teacher.subject}): ${numTurmas} turmas com ~${aulasPorDia} aulas/dia - risco de conflitos.`,
+        detalhes: `RECOMENDAÇÃO: Adicione mais dias de disponibilidade para distribuir melhor as aulas entre turmas.`
       });
     }
     // REGRA 3: Alta ocupação (alerta)
