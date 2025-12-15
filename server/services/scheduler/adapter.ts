@@ -401,17 +401,28 @@ class GeneticSchedulerEnhanced {
           
           if (availableSlots.length === 0) {
             // Fallback: slot aleatório se não há disponibilidade
-            const day = this.input.days[Math.floor(Math.random() * this.input.days.length)];
-            const period = Math.floor(Math.random() * this.input.periods) + 1;
-            
-            lessons.push({
-              day,
-              period,
-              class_id: cls.id,
-              subject: sub.name,
-              teacher_id: sub.teacher_id,
-            });
-            assignedCount++;
+            // Tentar até 50 vezes para encontrar slot livre
+            for (let fallbackTry = 0; fallbackTry < 50; fallbackTry++) {
+              const day = this.input.days[Math.floor(Math.random() * this.input.days.length)];
+              const period = Math.floor(Math.random() * this.input.periods) + 1;
+              const key = `${day}-${period}`;
+              const occupied = occupiedSlots.get(key);
+              
+              // Verificar se professor E turma estão livres neste slot
+              if (occupied && !occupied.has(sub.teacher_id) && !occupied.has(cls.id)) {
+                lessons.push({
+                  day,
+                  period,
+                  class_id: cls.id,
+                  subject: sub.name,
+                  teacher_id: sub.teacher_id,
+                });
+                occupied.add(sub.teacher_id);
+                occupied.add(cls.id);
+                assignedCount++;
+                break;
+              }
+            }
             continue;
           }
 
@@ -510,19 +521,28 @@ class GeneticSchedulerEnhanced {
           }
         }
 
-        // Preencher aulas faltantes com slots aleatórios
-        while (assignedCount < sub.hours_per_week) {
+        // Preencher aulas faltantes com slots aleatórios (respeitando ocupação)
+        let fillAttempts = 0;
+        while (assignedCount < sub.hours_per_week && fillAttempts < 100) {
+          fillAttempts++;
           const day = this.input.days[Math.floor(Math.random() * this.input.days.length)];
           const period = Math.floor(Math.random() * this.input.periods) + 1;
+          const key = `${day}-${period}`;
+          const occupied = occupiedSlots.get(key);
           
-          lessons.push({
-            day,
-            period,
-            class_id: cls.id,
-            subject: sub.name,
-            teacher_id: sub.teacher_id,
-          });
-          assignedCount++;
+          // Verificar se professor E turma estão livres
+          if (occupied && !occupied.has(sub.teacher_id) && !occupied.has(cls.id)) {
+            lessons.push({
+              day,
+              period,
+              class_id: cls.id,
+              subject: sub.name,
+              teacher_id: sub.teacher_id,
+            });
+            occupied.add(sub.teacher_id);
+            occupied.add(cls.id);
+            assignedCount++;
+          }
         }
       });
     });
@@ -612,13 +632,15 @@ class GeneticSchedulerEnhanced {
   private calculateFitness(schedule: Lesson[]): number {
     let score = 100;
     
-    // Constraint 1: Teacher conflict (same teacher in 2 places at once) - HARD
+    // Constraint 1: Teacher conflict (same teacher in 2 places at once) - HARD CONSTRAINT
+    // This is a critical error - penalty must be HUGE to prevent this
     const teacherConflicts = this.countConflicts(schedule, 'teacher_id');
-    score -= teacherConflicts * 15;
+    score -= teacherConflicts * 100; // Aumentado de 15 para 100!
 
-    // Constraint 2: Class conflict (same class has 2 lessons at once) - HARD
+    // Constraint 2: Class conflict (same class has 2 lessons at once) - HARD CONSTRAINT
+    // This is a critical error - a class cannot have 2 lessons at once
     const classConflicts = this.countConflicts(schedule, 'class_id');
-    score -= classConflicts * 15;
+    score -= classConflicts * 100; // Aumentado de 15 para 100!
 
     // Constraint 3: Teacher availability - MEDIUM
     schedule.forEach(lesson => {
