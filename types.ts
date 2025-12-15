@@ -19,8 +19,9 @@ export interface ScheduleSlot {
   teacherName: string;
 }
 
+// Cada slot agora pode ter múltiplas aulas (uma para cada turma)
 export type Schedule = {
   [day: string]: {
-    [timeSlot: string]: ScheduleSlot | null;
+    [timeSlot: string]: ScheduleSlot[];
   };
 };

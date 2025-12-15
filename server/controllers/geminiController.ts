@@ -25,13 +25,16 @@ const DAYS_OF_WEEK = [
     "Sexta-feira",
 ];
 
+interface ScheduleSlot {
+    grade: string;
+    subject: string;
+    teacherName: string;
+}
+
+// Cada slot pode ter múltiplas aulas (uma para cada turma)
 interface Schedule {
     [day: string]: {
-        [timeSlot: string]: {
-            grade: string;
-            subject: string;
-            teacherName: string;
-        } | null;
+        [timeSlot: string]: ScheduleSlot[];
     };
 }
 
@@ -47,18 +50,19 @@ const transformFlatScheduleToNested = (flatSchedule: any[], timeSlots: string[])
     for (const day of DAYS_OF_WEEK) {
         nestedSchedule[day] = {};
         for (const slot of timeSlots) {
-            nestedSchedule[day][slot] = null;
+            nestedSchedule[day][slot] = []; // Inicializa como array vazio
         }
     }
 
     for (const item of flatSchedule) {
         if (item && item.day && item.timeSlot) {
             if (nestedSchedule[item.day] && nestedSchedule[item.day].hasOwnProperty(item.timeSlot)) {
-                nestedSchedule[item.day][item.timeSlot] = {
+                // Adiciona ao array ao invés de sobrescrever
+                nestedSchedule[item.day][item.timeSlot].push({
                     grade: item.grade,
                     subject: item.subject,
                     teacherName: item.teacherName,
-                };
+                });
             }
         }
     }

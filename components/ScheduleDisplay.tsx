@@ -174,23 +174,34 @@ const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, isLoading, 
   }
   
   const renderCell = (day: string, timeSlot: string) => {
-    const slotData = schedule[day]?.[timeSlot] ?? null;
+    const slotData = schedule[day]?.[timeSlot] ?? [];
 
-    if (!slotData) {
+    if (!slotData || slotData.length === 0) {
         return null;
     }
 
     switch (displayMode) {
         case 'geral':
-            return <CellContent grade={slotData.grade} subject={slotData.subject} teacher={slotData.teacherName} />;
+            // Mostra todas as aulas do slot
+            return (
+              <div className="flex flex-col gap-1">
+                {slotData.map((item, idx) => (
+                  <CellContent key={idx} grade={item.grade} subject={item.subject} teacher={item.teacherName} />
+                ))}
+              </div>
+            );
         case 'turma':
-            if (slotData.grade === selectedGrade) {
-                return <CellContent subject={slotData.subject} teacher={slotData.teacherName} />;
+            // Filtra apenas a turma selecionada
+            const turmaItem = slotData.find(item => item.grade === selectedGrade);
+            if (turmaItem) {
+                return <CellContent subject={turmaItem.subject} teacher={turmaItem.teacherName} />;
             }
             break;
         case 'professor':
-            if (slotData.teacherName === selectedTeacherName) {
-                return <CellContent grade={slotData.grade} subject={slotData.subject} />;
+            // Filtra apenas o professor selecionado
+            const profItem = slotData.find(item => item.teacherName === selectedTeacherName);
+            if (profItem) {
+                return <CellContent grade={profItem.grade} subject={profItem.subject} />;
             }
             break;
     }
@@ -204,16 +215,23 @@ const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule, isLoading, 
     timeSlots.forEach(slot => {
       const row: { day: string; content: string }[] = [];
       DAYS_OF_WEEK.forEach(day => {
-        const cell = schedule[day]?.[slot];
+        const cells = schedule[day]?.[slot] ?? [];
         let content = '';
         
-        if (cell) {
+        if (cells && cells.length > 0) {
           if (displayMode === 'geral') {
-            content = `${cell.grade} - ${cell.subject} (${cell.teacherName})`;
-          } else if (displayMode === 'turma' && cell.grade === selectedGrade) {
-            content = `${cell.subject} (${cell.teacherName})`;
-          } else if (displayMode === 'professor' && cell.teacherName === selectedTeacherName) {
-            content = `${cell.grade} - ${cell.subject}`;
+            // Concatena todas as aulas do slot
+            content = cells.map(cell => `${cell.grade} - ${cell.subject} (${cell.teacherName})`).join('\n');
+          } else if (displayMode === 'turma') {
+            const cell = cells.find(c => c.grade === selectedGrade);
+            if (cell) {
+              content = `${cell.subject} (${cell.teacherName})`;
+            }
+          } else if (displayMode === 'professor') {
+            const cell = cells.find(c => c.teacherName === selectedTeacherName);
+            if (cell) {
+              content = `${cell.grade} - ${cell.subject}`;
+            }
           }
         }
         row.push({ day, content });
