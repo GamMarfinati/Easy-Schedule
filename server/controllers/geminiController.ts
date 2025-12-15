@@ -83,16 +83,23 @@ REGRAS CRÍTICAS (VIOLAÇÃO = FALHA):
 4. Professores só podem ser alocados em seus dias disponíveis
 5. Sua resposta DEVE SER APENAS JSON válido, sem texto adicional
 
-OTIMIZAÇÃO IMPORTANTE:
+OTIMIZAÇÃO IMPORTANTE (qualidade da grade):
 6. MINIMIZE as janelas (gaps) para os professores - aulas do mesmo professor no mesmo dia devem ser CONSECUTIVAS
    Exemplo BOM: Professor A na Segunda: 1ª, 2ª, 3ª aula (sem janelas)
    Exemplo RUIM: Professor A na Segunda: 1ª, 3ª, 5ª aula (2 janelas - evitar!)
+
+7. CONCENTRE as aulas por dia - EVITE dias com apenas 1 ou 2 aulas para um professor
+   Professores são pagos por aula, então ir à escola para dar só 1 aula não vale o deslocamento.
+   Prefira dar 4-5 aulas num dia do que 1-2 aulas em vários dias.
+   Exemplo BOM: Professor B trabalha só 2 dias na semana, com 4 aulas em cada dia
+   Exemplo RUIM: Professor B vai à escola todos os 5 dias, dando 1-2 aulas por dia
 
 ANTES de gerar a resposta, VERIFIQUE internamente:
 - Contagem de aulas por professor por turma
 - Ausência de conflitos de horário
 - Respeito aos dias de disponibilidade
 - Aulas do mesmo professor agrupadas (consecutivas) no dia
+- Aulas concentradas em menos dias possíveis
 `;
 
 /**

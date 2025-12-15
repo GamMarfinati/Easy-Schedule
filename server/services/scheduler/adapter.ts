@@ -638,7 +638,61 @@ class GeneticSchedulerEnhanced {
     // Penalizar gaps: cada período vago custa 3 pontos
     score -= totalGaps * 3;
 
-    // Bonus: Distribuição equilibrada de aulas por dia
+    // Constraint 5: CONCENTRAÇÃO DE AULAS - Penalizar dias com poucas aulas
+    // Professor não deve ir à escola para dar 1-2 aulas (não compensa financeiramente)
+    const teacherDayCount = new Map<string, number>();
+    schedule.forEach(lesson => {
+      const key = `${lesson.teacher_id}-${lesson.day}`;
+      teacherDayCount.set(key, (teacherDayCount.get(key) || 0) + 1);
+    });
+    
+    let lowDayPenalty = 0;
+    let highDayBonus = 0;
+    const teacherDays = new Map<string, number>(); // Conta quantos dias cada professor trabalha
+    
+    teacherDayCount.forEach((count, key) => {
+      const teacherId = key.split('-')[0];
+      teacherDays.set(teacherId, (teacherDays.get(teacherId) || 0) + 1);
+      
+      // Penalizar dias com apenas 1 aula (muito ruim para o professor)
+      if (count === 1) {
+        lowDayPenalty += 6; // Penalidade alta
+      }
+      // Penalizar dias com 2 aulas (ainda ruim)
+      else if (count === 2) {
+        lowDayPenalty += 3;
+      }
+      // Bônus para dias com 3+ aulas (bom)
+      else if (count >= 3) {
+        highDayBonus += 2;
+      }
+      // Bônus extra para dias com 4+ aulas (muito bom)
+      if (count >= 4) {
+        highDayBonus += 3;
+      }
+    });
+    
+    score -= lowDayPenalty;
+    score += highDayBonus;
+    
+    // Constraint 6: MINIMIZAR DIAS DE TRABALHO
+    // Preferir que um professor trabalhe em menos dias com mais aulas por dia
+    let minDaysBonus = 0;
+    teacherDays.forEach((numDays, teacherId) => {
+      // Se professor trabalha em poucos dias (concentrado), dar bônus
+      if (numDays <= 2) {
+        minDaysBonus += 4;
+      } else if (numDays <= 3) {
+        minDaysBonus += 2;
+      }
+      // Se professor trabalha todos os 5 dias, não é ideal
+      if (numDays >= 5) {
+        minDaysBonus -= 2;
+      }
+    });
+    score += minDaysBonus;
+
+    // Bonus: Distribuição equilibrada de aulas por dia (global da escola)
     const lessonsPerDay = new Map<string, number>();
     schedule.forEach(l => {
       lessonsPerDay.set(l.day, (lessonsPerDay.get(l.day) || 0) + 1);
