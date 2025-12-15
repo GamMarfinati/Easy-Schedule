@@ -23,12 +23,13 @@ export const PRESETS_HORARIOS: PresetHorario[] = [
     aulasSemanais: 30,
     aulasPorDia: 6,
     slots: [
-      "07:15-08:05",
-      "08:05-08:55",
-      "09:10-10:00",
-      "10:00-10:50",
-      "11:05-11:55",
-      "11:55-12:45"
+      "1ª Aula",
+      "2ª Aula",
+      "3ª Aula",
+      "Intervalo",
+      "4ª Aula",
+      "5ª Aula",
+      "6ª Aula"
     ]
   },
   {
@@ -38,13 +39,14 @@ export const PRESETS_HORARIOS: PresetHorario[] = [
     aulasSemanais: 35,
     aulasPorDia: 7,
     slots: [
-      "07:15-08:05",
-      "08:05-08:55",
-      "09:10-10:00",
-      "10:00-10:50",
-      "11:05-11:55",
-      "11:55-12:45",
-      "12:45-13:35"
+      "1ª Aula",
+      "2ª Aula",
+      "3ª Aula",
+      "Intervalo",
+      "4ª Aula",
+      "5ª Aula",
+      "6ª Aula",
+      "7ª Aula"
     ]
   },
   {
@@ -54,14 +56,16 @@ export const PRESETS_HORARIOS: PresetHorario[] = [
     aulasSemanais: 40,
     aulasPorDia: 8,
     slots: [
-      "07:15-08:05",
-      "08:05-08:55",
-      "09:10-10:00",
-      "10:00-10:50",
-      "11:05-11:55",
-      "11:55-12:45",
-      "14:00-14:50",
-      "14:50-15:40"
+      "1ª Aula",
+      "2ª Aula",
+      "3ª Aula",
+      "Intervalo",
+      "4ª Aula",
+      "5ª Aula",
+      "6ª Aula",
+      "Almoço",
+      "7ª Aula",
+      "8ª Aula"
     ]
   },
   {
@@ -71,15 +75,17 @@ export const PRESETS_HORARIOS: PresetHorario[] = [
     aulasSemanais: 45,
     aulasPorDia: 9,
     slots: [
-      "07:15-08:05",
-      "08:05-08:55",
-      "09:10-10:00",
-      "10:00-10:50",
-      "11:05-11:55",
-      "11:55-12:45",
-      "14:00-14:50",
-      "14:50-15:40",
-      "15:55-16:45"
+      "1ª Aula",
+      "2ª Aula",
+      "3ª Aula",
+      "Intervalo",
+      "4ª Aula",
+      "5ª Aula",
+      "6ª Aula",
+      "Almoço",
+      "7ª Aula",
+      "8ª Aula",
+      "9ª Aula"
     ]
   },
   {
@@ -89,16 +95,18 @@ export const PRESETS_HORARIOS: PresetHorario[] = [
     aulasSemanais: 50,
     aulasPorDia: 10,
     slots: [
-      "07:15-08:05",
-      "08:05-08:55",
-      "09:10-10:00",
-      "10:00-10:50",
-      "11:05-11:55",
-      "11:55-12:45",
-      "14:00-14:50",
-      "14:50-15:40",
-      "15:55-16:45",
-      "16:45-17:35"
+      "1ª Aula",
+      "2ª Aula",
+      "3ª Aula",
+      "Intervalo",
+      "4ª Aula",
+      "5ª Aula",
+      "6ª Aula",
+      "Almoço",
+      "7ª Aula",
+      "8ª Aula",
+      "9ª Aula",
+      "10ª Aula"
     ]
   }
 ];

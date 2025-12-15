@@ -359,11 +359,7 @@ export const generateScheduleAI = async (req: Request, res: Response) => {
         console.log(`[Scheduler] ⚠️ IA falhou após ${MAX_RETRY_ATTEMPTS} tentativas. Tentando algoritmo genético...`);
 
         try {
-            const geneticResult = runGeneticScheduler(teachers, timeSlots, {
-                populationSize: 150,
-                generations: 300,
-                maxAttempts: 3
-            });
+            const geneticResult = runGeneticScheduler(teachers, timeSlots);
 
             if (geneticResult.success && geneticResult.schedule) {
                 console.log(`[Scheduler] ✅ Algoritmo genético gerou grade válida na tentativa ${geneticResult.attempts}!`);
