@@ -1,4 +1,4 @@
-import { ScheduleInput, ScheduleSolution, Lesson, TimeSlot, Teacher, ClassGroup, Subject } from './types.js';
+import { ScheduleInput, ScheduleSolution, Lesson, TimeSlot, Teacher, ClassGroup, Subject, Conflict } from './types.js';
 
 // Helper to compare slots
 const isSameSlot = (a: TimeSlot, b: TimeSlot) => a.day === b.day && a.period === b.period;
@@ -68,15 +68,21 @@ export class GeneticScheduler {
   public generate(): ScheduleSolution[] {
     const assignment: Map<string, TimeSlot> = new Map();
     const solutions: ScheduleSolution[] = [];
+    let bestAssignment: Map<string, TimeSlot> = new Map();
 
     // We want to find at least one valid solution.
     // We can try to find optimal ones later, but first: STRICT VALIDITY.
 
     // Using a timeout to prevent infinite loops in impossible scenarios
     const startTime = Date.now();
-    const timeLimit = 30000; // 30 seconds max
+    const timeLimit = 3000; // 3 seconds max (Requirement: "strict execution time limit")
 
     const backtrack = (index: number): boolean => {
+      // Update best assignment found so far (maximize number of assigned variables)
+      if (assignment.size > bestAssignment.size) {
+        bestAssignment = new Map(assignment);
+      }
+
       if (Date.now() - startTime > timeLimit) return false;
 
       if (index === this.variables.length) {
@@ -112,13 +118,86 @@ export class GeneticScheduler {
     backtrack(0);
 
     if (solutions.length === 0) {
-      // Fallback: Return empty or partial?
-      // User requested strict adherence. If strict fails, maybe we return what we have?
-      // Or we just return empty array.
-      return [];
+      // Fallback: Use best partial assignment and fill the rest with conflicts
+      return [this.fillPartialSolution(bestAssignment)];
     }
 
     return solutions;
+  }
+
+  private fillPartialSolution(assignment: Map<string, TimeSlot>): ScheduleSolution {
+    // We start with the valid assignment we have so far
+    // and try to assign the rest, minimizing conflicts
+    const finalAssignment = new Map(assignment);
+
+    // Identify unassigned variables
+    const unassignedVars = this.variables.filter(v => !finalAssignment.has(v.id));
+
+    // Construct all possible slots (ignoring teacher constraints for now)
+    const allSlots: TimeSlot[] = [];
+    for (const day of this.input.days) {
+      for (let p = 1; p <= this.input.periods; p++) {
+        allSlots.push({ day, period: p });
+      }
+    }
+
+    // Assign remaining variables
+    for (const variable of unassignedVars) {
+      // Try to find a slot in their domain first (even if it conflicts with others)
+      // If domain is empty (teacher unavailable), pick any slot.
+
+      let candidateSlots = this.domains.get(variable.id) || [];
+      if (candidateSlots.length === 0) {
+        candidateSlots = allSlots;
+      }
+
+      // Pick the slot that causes the minimum number of conflicts
+      let bestSlot = candidateSlots[0];
+      let minConflicts = Infinity;
+
+      // Optimization: Just check a few or first available to save time?
+      // Since we are already timed out or failed, we should be fast.
+      // Checking all slots might be slow if there are many unassigned.
+      // Let's check first 10-20 slots or all if small.
+
+      for (const slot of candidateSlots) {
+         const conflictCount = this.countConflicts(variable, slot, finalAssignment);
+         if (conflictCount < minConflicts) {
+             minConflicts = conflictCount;
+             bestSlot = slot;
+         }
+         if (minConflicts === 0) break; // Found a valid one? unlikely if we are here but possible
+      }
+
+      if (bestSlot) {
+        finalAssignment.set(variable.id, bestSlot);
+      } else if (allSlots.length > 0) {
+        // Fallback if candidateSlots was empty
+         finalAssignment.set(variable.id, allSlots[0]);
+      }
+    }
+
+    return this.buildSolutionWithConflicts(finalAssignment);
+  }
+
+  private countConflicts(
+    currentVar: typeof this.variables[0],
+    slot: TimeSlot,
+    assignment: Map<string, TimeSlot>
+  ): number {
+    let conflicts = 0;
+
+    // Check overlapping assignments
+    for (const [varId, assignedSlot] of assignment.entries()) {
+      if (isSameSlot(assignedSlot, slot)) {
+        const assignedVar = this.variables.find(v => v.id === varId);
+        if (!assignedVar) continue;
+        if (assignedVar.teacherId === currentVar.teacherId) conflicts++;
+        if (assignedVar.classId === currentVar.classId) conflicts++;
+      }
+    }
+
+    return conflicts;
   }
 
   private isValid(
@@ -167,6 +246,83 @@ export class GeneticScheduler {
     return {
       score: 100, // Strict solution is perfect by definition of constraints
       schedule: lessons
+    };
+  }
+
+  private buildSolutionWithConflicts(assignment: Map<string, TimeSlot>): ScheduleSolution {
+    const lessons: Lesson[] = [];
+    const allConflicts: Conflict[] = [];
+
+    assignment.forEach((slot, varId) => {
+      const v = this.variables.find(variable => variable.id === varId);
+      if (!v) return;
+
+      let lessonConflict: Conflict | undefined;
+
+      // 1. Check Availability Conflict
+      // Re-check if slot is in domain
+      const validDomain = this.domains.get(v.id) || [];
+      const isAvailable = validDomain.some(d => isSameSlot(d, slot));
+
+      if (!isAvailable) {
+         lessonConflict = {
+             type: 'teacher_unavailable',
+             message: 'Professor indisponível neste horário'
+         };
+      }
+
+      // 2. Check Double Booking (Teacher) & Class Overlap
+      // We need to check against OTHER assignments in this built solution
+      // But this is O(N^2). Since N is small (<1000 usually), it's fine.
+      // Iterate over lessons added so far? No, assignment map is complete.
+
+      if (!lessonConflict) {
+          for (const [otherVarId, otherSlot] of assignment.entries()) {
+              if (varId === otherVarId) continue;
+              if (isSameSlot(slot, otherSlot)) {
+                  const otherV = this.variables.find(variable => variable.id === otherVarId);
+                  if (!otherV) continue;
+
+                  if (otherV.teacherId === v.teacherId) {
+                      lessonConflict = {
+                          type: 'double_booking',
+                          message: `Professor agendado também na turma ${otherV.classId} (${otherV.subject.name})`
+                      };
+                      break;
+                  }
+                  if (otherV.classId === v.classId) {
+                      lessonConflict = {
+                          type: 'class_overlap',
+                          message: `Turma tem outra aula agendada: ${otherV.subject.name}`
+                      };
+                      break;
+                  }
+              }
+          }
+      }
+
+      if (lessonConflict) {
+          allConflicts.push(lessonConflict);
+      }
+
+      lessons.push({
+        day: slot.day,
+        period: slot.period,
+        class_id: v.classId,
+        subject: v.subject.name,
+        teacher_id: v.teacherId,
+        conflict: lessonConflict
+      });
+    });
+
+    // Score is lower because of conflicts.
+    // We can calculate score based on conflict count.
+    const score = Math.max(0, 100 - (allConflicts.length * 5));
+
+    return {
+      score,
+      schedule: lessons,
+      conflicts: allConflicts
     };
   }
 }

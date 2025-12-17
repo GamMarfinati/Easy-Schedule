@@ -29,6 +29,7 @@ interface ScheduleSlot {
     grade: string;
     subject: string;
     teacherName: string;
+    conflict?: { type: string; message: string };
 }
 
 // Cada slot pode ter múltiplas aulas (uma para cada turma)
@@ -62,6 +63,7 @@ const transformFlatScheduleToNested = (flatSchedule: any[], timeSlots: string[])
                     grade: item.grade,
                     subject: item.subject,
                     teacherName: item.teacherName,
+                    conflict: item.conflict
                 });
             }
         }
@@ -361,7 +363,7 @@ export const generateScheduleAI = async (req: Request, res: Response) => {
         }
 
         // ============================================================
-        // FALLBACK: ALGORITMO GENÉTICO
+        // FALLBACK: ALGORITMO GENÉTICO (Agora Estrito CSP)
         // ============================================================
         console.log(`[Scheduler] ⚠️ IA falhou após ${MAX_RETRY_ATTEMPTS} tentativas. Tentando algoritmo genético...`);
 
@@ -369,10 +371,13 @@ export const generateScheduleAI = async (req: Request, res: Response) => {
             const geneticResult = runGeneticScheduler(teachers, timeSlots);
 
             if (geneticResult.success && geneticResult.schedule) {
-                console.log(`[Scheduler] ✅ Algoritmo genético gerou grade válida na tentativa ${geneticResult.attempts}!`);
+                console.log(`[Scheduler] ✅ Algoritmo genético gerou grade (com ou sem conflitos)`);
                 console.log(`[Scheduler] Score: ${geneticResult.bestScore}`);
 
                 const schedule = transformFlatScheduleToNested(geneticResult.schedule, timeSlots);
+
+                // If it has conflicts, we might want to communicate that in metadata
+                const hasConflicts = (geneticResult.conflicts && geneticResult.conflicts.length > 0);
 
                 return res.status(200).json({ 
                     schedule,
@@ -382,49 +387,25 @@ export const generateScheduleAI = async (req: Request, res: Response) => {
                         geneticAttempts: geneticResult.attempts,
                         totalLessons: geneticResult.validationResult?.estatisticas?.totalAulasGeradas,
                         bestScore: geneticResult.bestScore,
-                        generatedAt: new Date().toISOString()
+                        generatedAt: new Date().toISOString(),
+                        hasConflicts: hasConflicts,
+                        conflicts: geneticResult.conflicts
                     }
                 });
             }
 
-            // Ambos falharam
-            console.log(`[Scheduler] ❌ Algoritmo genético também falhou após ${geneticResult.attempts} tentativas`);
+            // Fallback: If for some reason success is false (shouldn't happen with new logic unless complete crash)
+            console.log(`[Scheduler] ❌ Algoritmo genético falhou inesperadamente`);
             
-            // Combinar erros da IA e do algoritmo genético
-            const allErrors = [
-                ...(validationResult.erros || []),
-                ...(geneticResult.validationResult?.erros || [])
-            ].filter((v, i, a) => a.indexOf(v) === i).slice(0, 10); // Remover duplicatas e limitar
-
-            // Analisar os erros para identificar professores problemáticos
-            const professorProblems = new Map<string, string[]>();
-            allErrors.forEach(erro => {
-                const match = erro.match(/^(\w+\s+\w+)/);
-                if (match) {
-                    const prof = match[1];
-                    if (!professorProblems.has(prof)) professorProblems.set(prof, []);
-                    professorProblems.get(prof)!.push(erro);
-                }
-            });
-
-            // Gerar sugestão específica
-            const professorList = Array.from(professorProblems.keys()).slice(0, 3).join(', ');
-            const suggestion = professorList
-                ? `Professores com problemas: ${professorList}. Edite-os para adicionar mais dias de disponibilidade ou reduzir sua carga horária.`
-                : "As restrições podem ser muito conflitantes. Tente: 1) Ampliar dias disponíveis dos professores, 2) Reduzir carga horária, ou 3) Dividir em menos turmas.";
-
-            return res.status(422).json({ 
-                error: `Não foi possível gerar uma grade válida. Tentativas: IA (${MAX_RETRY_ATTEMPTS}), Genético (${geneticResult.attempts}).`,
-                details: allErrors.slice(0, 5),
-                suggestion,
-                isViabilityError: true,
-                requiresDataFix: true
+            return res.status(500).json({
+                error: `Erro interno ao gerar grade.`,
+                details: ['Falha crítica no algoritmo de fallback.']
             });
 
         } catch (geneticError) {
             console.error("[Scheduler] Erro no algoritmo genético:", geneticError);
             
-            // Retornar erro da IA original
+            // Retornar erro da IA original se o fallback falhar
             return res.status(422).json({ 
                 error: `Não foi possível gerar uma grade válida após ${MAX_RETRY_ATTEMPTS} tentativas.`,
                 details: validationResult.erros.slice(0, 5),
