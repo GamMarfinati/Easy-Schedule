@@ -86,7 +86,7 @@ const ScheduleViewPage: React.FC = () => {
     td { border: 1px solid #e5e7eb; padding: 8px; text-align: center; vertical-align: middle; min-height: 50px; }
     .slot-header { background: #f3f4f6; font-weight: 600; color: #374151; }
     .cell-content { background: #eff6ff; border-left: 3px solid #3b82f6; padding: 6px; border-radius: 4px; font-size: 10px; margin-bottom: 4px; }
-    .cell-content.conflict { background: #fef2f2; border-left-color: #ef4444; }
+    .cell-content.conflict { background: #fee2e2; border-left-color: #ef4444; }
     .cell-content.conflict p { color: #991b1b; }
     .footer { margin-top: 20px; text-align: center; color: #9ca3af; font-size: 10px; }
   </style>
@@ -247,11 +247,11 @@ const ScheduleViewPage: React.FC = () => {
                 const cellItems = schedule[day]?.[slot] || [];
 
                 return (
-                  <div key={`${day}-${slot}`} className="min-h-24 h-auto bg-gray-50 rounded-md p-1">
+                  <div key={`${day}-${slot}`} className="min-h-24 h-auto bg-gray-50 rounded-md p-1 flex flex-col gap-1">
                     {cellItems.map((item, idx) => {
                        const isConflict = !!item.conflict;
                        return (
-                        <div key={idx} className={`${isConflict ? 'bg-red-50 border-red-400' : 'bg-blue-50 border-blue-400'} p-2 rounded-lg mb-1 flex flex-col justify-center text-center border-l-4 text-xs transition-colors duration-200 relative group`}>
+                        <div key={idx} className={`${isConflict ? 'bg-red-100 border-red-400' : 'bg-blue-50 border-blue-400'} p-2 rounded-lg flex flex-col justify-center text-center border-l-4 text-xs transition-colors duration-200 relative group`}>
                             <p className={`font-bold text-sm ${isConflict ? 'text-red-900' : 'text-blue-900'}`}>{item.grade}</p>
                             <p className={`${isConflict ? 'text-red-800' : 'text-blue-800'} font-medium`}>{item.subject}</p>
                             <p className="text-gray-500 italic mt-1">{item.teacherName}</p>
