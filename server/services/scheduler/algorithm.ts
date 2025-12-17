@@ -143,41 +143,104 @@ export class GeneticScheduler {
 
     // Assign remaining variables
     for (const variable of unassignedVars) {
-      // Try to find a slot in their domain first (even if it conflicts with others)
-      // If domain is empty (teacher unavailable), pick any slot.
+      // In fallback mode, we consider ALL slots to guarantee compactness and full assignment,
+      // even if the teacher is unavailable (which adds a penalty score).
+      // We rely on calculateSlotScore to prioritize valid slots over invalid ones.
 
-      let candidateSlots = this.domains.get(variable.id) || [];
-      if (candidateSlots.length === 0) {
-        candidateSlots = allSlots;
-      }
+      let bestSlot = allSlots[0];
+      let minScore = Infinity;
 
-      // Pick the slot that causes the minimum number of conflicts
-      let bestSlot = candidateSlots[0];
-      let minConflicts = Infinity;
-
-      // Optimization: Just check a few or first available to save time?
-      // Since we are already timed out or failed, we should be fast.
-      // Checking all slots might be slow if there are many unassigned.
-      // Let's check first 10-20 slots or all if small.
-
-      for (const slot of candidateSlots) {
-         const conflictCount = this.countConflicts(variable, slot, finalAssignment);
-         if (conflictCount < minConflicts) {
-             minConflicts = conflictCount;
+      for (const slot of allSlots) {
+         const score = this.calculateSlotScore(variable, slot, finalAssignment);
+         if (score < minScore) {
+             minScore = score;
              bestSlot = slot;
          }
-         if (minConflicts === 0) break; // Found a valid one? unlikely if we are here but possible
       }
 
       if (bestSlot) {
         finalAssignment.set(variable.id, bestSlot);
-      } else if (allSlots.length > 0) {
-        // Fallback if candidateSlots was empty
-         finalAssignment.set(variable.id, allSlots[0]);
       }
     }
 
     return this.buildSolutionWithConflicts(finalAssignment);
+  }
+
+  private calculateSlotScore(
+    variable: typeof this.variables[0],
+    slot: TimeSlot,
+    assignment: Map<string, TimeSlot>
+  ): number {
+      let score = 0;
+
+      // 1. Teacher Availability (Base Constraint)
+      // If slot is not in teacher's domain, penalty
+      const validDomain = this.domains.get(variable.id) || [];
+      const isAvailable = validDomain.some(d => isSameSlot(d, slot));
+      if (!isAvailable) {
+          score += 1000;
+      }
+
+      // 2. Conflicts with existing assignments
+      for (const [varId, assignedSlot] of assignment.entries()) {
+          if (isSameSlot(assignedSlot, slot)) {
+              const assignedVar = this.variables.find(v => v.id === varId);
+              if (!assignedVar) continue;
+
+              // Teacher Double Booking
+              if (assignedVar.teacherId === variable.teacherId) {
+                  score += 1000;
+              }
+
+              // Class Overlap (Critical to avoid if possible)
+              if (assignedVar.classId === variable.classId) {
+                  score += 5000; // Prefer double booking teacher over double booking class slot
+              }
+          }
+      }
+
+      // 3. Gap Penalty (Compactness)
+      // Find all slots assigned to this class on this day
+      const classSlotsOnDay: number[] = [];
+      for (const [varId, assignedSlot] of assignment.entries()) {
+          const assignedVar = this.variables.find(v => v.id === varId);
+          if (assignedVar && assignedVar.classId === variable.classId && assignedVar.day === slot.day) {
+              classSlotsOnDay.push(assignedSlot.period);
+          }
+      }
+      classSlotsOnDay.sort((a, b) => a - b);
+
+      if (classSlotsOnDay.length > 0) {
+          const minP = classSlotsOnDay[0];
+          const maxP = classSlotsOnDay[classSlotsOnDay.length - 1];
+
+          // Check if slot is adjacent
+          const isAdjacent = classSlotsOnDay.includes(slot.period - 1) || classSlotsOnDay.includes(slot.period + 1);
+
+          if (isAdjacent) {
+              score -= 50; // Bonus for adjacency
+          } else {
+              // Check if it fills a gap
+              if (slot.period > minP && slot.period < maxP) {
+                  score -= 500; // Huge bonus for filling a hole!
+              } else {
+                  // It's disjoint (creating a gap)
+                  // Distance to nearest block
+                  const distMin = Math.abs(slot.period - minP);
+                  const distMax = Math.abs(slot.period - maxP);
+                  const dist = Math.min(distMin, distMax);
+
+                  if (dist > 1) {
+                      score += (dist * 100); // Penalty proportional to distance
+                  }
+              }
+          }
+      } else {
+          // First lesson of the day for this class.
+          // score += slot.period; // Slight preference for earlier slots?
+      }
+
+      return score;
   }
 
   private countConflicts(
@@ -276,27 +339,30 @@ export class GeneticScheduler {
       // But this is O(N^2). Since N is small (<1000 usually), it's fine.
       // Iterate over lessons added so far? No, assignment map is complete.
 
-      if (!lessonConflict) {
-          for (const [otherVarId, otherSlot] of assignment.entries()) {
-              if (varId === otherVarId) continue;
-              if (isSameSlot(slot, otherSlot)) {
-                  const otherV = this.variables.find(variable => variable.id === otherVarId);
-                  if (!otherV) continue;
+      // Prioritize identifying Class Overlap as it is visually more important to fix in grid
+      for (const [otherVarId, otherSlot] of assignment.entries()) {
+          if (varId === otherVarId) continue;
+          if (isSameSlot(slot, otherSlot)) {
+              const otherV = this.variables.find(variable => variable.id === otherVarId);
+              if (!otherV) continue;
 
-                  if (otherV.teacherId === v.teacherId) {
-                      lessonConflict = {
-                          type: 'double_booking',
-                          message: `Professor agendado também na turma ${otherV.classId} (${otherV.subject.name})`
-                      };
-                      break;
-                  }
-                  if (otherV.classId === v.classId) {
-                      lessonConflict = {
-                          type: 'class_overlap',
-                          message: `Turma tem outra aula agendada: ${otherV.subject.name}`
-                      };
-                      break;
-                  }
+              if (otherV.classId === v.classId) {
+                   // Only overwrite if not already set or if previous was just unavailable
+                   if (!lessonConflict || lessonConflict.type === 'teacher_unavailable') {
+                       lessonConflict = {
+                           type: 'class_overlap',
+                           message: `Turma tem outra aula agendada: ${otherV.subject.name}`
+                       };
+                   }
+              }
+
+              if (otherV.teacherId === v.teacherId) {
+                   if (!lessonConflict || lessonConflict.type === 'teacher_unavailable') {
+                       lessonConflict = {
+                           type: 'double_booking',
+                           message: `Professor agendado também na turma ${otherV.classId} (${otherV.subject.name})`
+                       };
+                   }
               }
           }
       }
