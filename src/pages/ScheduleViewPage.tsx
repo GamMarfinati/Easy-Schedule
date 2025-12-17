@@ -16,6 +16,7 @@ interface ScheduleData {
       teachersCount: number;
       timeSlotsCount: number;
       savedAt: string;
+      hasConflicts?: boolean;
     };
   };
   created_at: string;
@@ -85,6 +86,8 @@ const ScheduleViewPage: React.FC = () => {
     td { border: 1px solid #e5e7eb; padding: 8px; text-align: center; vertical-align: middle; min-height: 50px; }
     .slot-header { background: #f3f4f6; font-weight: 600; color: #374151; }
     .cell-content { background: #eff6ff; border-left: 3px solid #3b82f6; padding: 6px; border-radius: 4px; font-size: 10px; }
+    .cell-content.conflict { background: #fef2f2; border-left-color: #ef4444; }
+    .cell-content.conflict p { color: #991b1b; }
     .footer { margin-top: 20px; text-align: center; color: #9ca3af; font-size: 10px; }
   </style>
 </head>
@@ -106,7 +109,10 @@ const ScheduleViewPage: React.FC = () => {
           <td class="slot-header">${slot}</td>
           ${DAYS_OF_WEEK.map(day => {
             const cell = schedule[day]?.[slot];
-            return `<td>${cell ? `<div class="cell-content">${cell.grade} - ${cell.subject} (${cell.teacherName})</div>` : ''}</td>`;
+            const conflictClass = (cell && cell.conflict) ? 'conflict' : '';
+            const conflictText = (cell && cell.conflict) ? `<br/><span style="color:red;font-weight:bold;">⚠️ ${cell.conflict.message}</span>` : '';
+
+            return `<td>${cell ? `<div class="cell-content ${conflictClass}">${cell.grade} - ${cell.subject} (${cell.teacherName})${conflictText}</div>` : ''}</td>`;
           }).join('')}
         </tr>
       `).join('')}
@@ -178,6 +184,25 @@ const ScheduleViewPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Warning for conflicts */}
+      {metadata?.hasConflicts && (
+        <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-yellow-700">
+                Atenção: Esta grade foi gerada com conflitos porque não foi possível encontrar uma solução perfeita dentro do tempo limite.
+                Verifique as células em vermelho.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Metadata */}
       {metadata && (
         <div className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -215,13 +240,30 @@ const ScheduleViewPage: React.FC = () => {
               <div className="font-bold text-gray-700 text-sm p-2 flex items-center justify-center bg-gray-100 rounded-l-lg">{slot}</div>
               {DAYS_OF_WEEK.map(day => {
                 const cell = schedule[day]?.[slot];
+                const isConflict = !!cell?.conflict;
+
                 return (
-                  <div key={`${day}-${slot}`} className="h-24 bg-gray-50 rounded-md">
+                  <div key={`${day}-${slot}`} className="h-24 bg-gray-50 rounded-md relative group">
                     {cell && (
-                      <div className="bg-blue-50 p-2 rounded-lg h-full flex flex-col justify-center text-center border-l-4 border-blue-400 text-xs">
-                        <p className="font-bold text-sm text-blue-900">{cell.grade}</p>
-                        <p className="text-blue-800 font-medium">{cell.subject}</p>
+                      <div className={`${isConflict ? 'bg-red-50 border-red-400' : 'bg-blue-50 border-blue-400'} p-2 rounded-lg h-full flex flex-col justify-center text-center border-l-4 text-xs transition-colors duration-200`}>
+                        <p className={`font-bold text-sm ${isConflict ? 'text-red-900' : 'text-blue-900'}`}>{cell.grade}</p>
+                        <p className={`${isConflict ? 'text-red-800' : 'text-blue-800'} font-medium`}>{cell.subject}</p>
                         <p className="text-gray-500 italic mt-1">{cell.teacherName}</p>
+
+                        {isConflict && (
+                          <div className="absolute top-1 right-1">
+                            <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                        )}
+
+                        {/* Tooltip for conflict */}
+                        {isConflict && (
+                           <div className="hidden group-hover:block absolute z-10 w-48 p-2 mt-1 text-xs text-white bg-red-800 rounded-lg shadow-lg -top-10 left-1/2 transform -translate-x-1/2">
+                             {cell.conflict?.message || 'Conflito detectado'}
+                           </div>
+                        )}
                       </div>
                     )}
                   </div>

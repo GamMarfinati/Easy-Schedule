@@ -41,6 +41,11 @@ export interface ScheduleInput {
   };
 }
 
+export interface Conflict {
+  type: 'double_booking' | 'teacher_unavailable' | 'class_overlap';
+  message: string;
+}
+
 export interface Lesson {
   day: string;
   period: number;
@@ -48,9 +53,11 @@ export interface Lesson {
   subject: string;
   teacher_id: string;
   classroom_id?: string;
+  conflict?: Conflict;
 }
 
 export interface ScheduleSolution {
   score: number;
   schedule: Lesson[];
+  conflicts?: Conflict[]; // Optional summary of conflicts
 }

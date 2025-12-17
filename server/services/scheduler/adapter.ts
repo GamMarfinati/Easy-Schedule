@@ -162,7 +162,8 @@ export function convertFromGeneticOutput(
       timeSlot,
       grade: gradeName,
       subject: lesson.subject,
-      teacherName: teacher?.name || 'Professor Desconhecido'
+      teacherName: teacher?.name || 'Professor Desconhecido',
+      conflict: lesson.conflict // Pass conflict info to frontend
     };
   });
 }
@@ -213,6 +214,7 @@ export function runGeneticScheduler(
   attempts: number;
   bestScore: number;
   validationResult: ValidacaoResultado | null;
+  conflicts?: any[];
 } {
   // Options mostly ignored now as CSP is deterministic (mostly) and strict
   const {
@@ -236,31 +238,39 @@ export function runGeneticScheduler(
   const solutions = scheduler.generate();
 
   if (solutions.length === 0) {
-    console.log(`[StrictScheduler] Nenhuma solução encontrada.`);
+    // Should not happen now as we return partial solutions
+    console.log(`[StrictScheduler] Erro inesperado: Nenhuma solução gerada.`);
     return {
       success: false,
       schedule: null,
       attempts: 1,
       bestScore: 0,
-      validationResult: { valido: false, erros: ['Não foi possível encontrar uma grade válida para as restrições informadas.'] }
+      validationResult: { valido: false, erros: ['Erro interno: algoritmo não retornou resultado.'] }
     };
   }
 
-  // Pegar a primeira solução válida
+  // Pegar a primeira solução
   const bestSolution = solutions[0];
-  console.log(`[StrictScheduler] ✅ Solução encontrada!`);
+  const hasConflicts = (bestSolution.conflicts && bestSolution.conflicts.length > 0);
+
+  if (hasConflicts) {
+      console.log(`[StrictScheduler] ⚠️ Solução parcial encontrada com ${bestSolution.conflicts?.length} conflitos.`);
+  } else {
+      console.log(`[StrictScheduler] ✅ Solução perfeita encontrada!`);
+  }
 
   const flatSchedule = convertFromGeneticOutput(bestSolution, input, frontendTeachers, timeSlots);
   
-  // Validate just to be sure and get formatted errors if any (should be valid)
+  // Validate just to be sure and get formatted errors if any
   const aulas = convertToValidatorFormat(bestSolution, input, frontendTeachers);
   const validation = validarGrade(aulas, regras);
 
   return {
-    success: true,
+    success: true, // Always success now, even with conflicts
     schedule: flatSchedule,
     attempts: 1,
     bestScore: bestSolution.score,
-    validationResult: validation
+    validationResult: validation,
+    conflicts: bestSolution.conflicts
   };
 }
