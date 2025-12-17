@@ -206,6 +206,7 @@ export function runGeneticScheduler(
     populationSize?: number;
     generations?: number;
     maxAttempts?: number;
+    timeout?: number; // Added timeout option
   } = {}
 ): {
   success: boolean;
@@ -214,11 +215,6 @@ export function runGeneticScheduler(
   bestScore: number;
   validationResult: ValidacaoResultado | null;
 } {
-  // Options mostly ignored now as CSP is deterministic (mostly) and strict
-  const {
-    maxAttempts = 1 // Deterministic, so 1 attempt is usually enough unless we implement randomized ordering
-  } = options;
-
   console.log(`[StrictScheduler] Iniciando com ${frontendTeachers.length} professores`);
 
   // Converter dados
@@ -233,7 +229,8 @@ export function runGeneticScheduler(
   // Criar scheduler
   const scheduler = new GeneticScheduler(input); // Using Strict CSP Solver now
 
-  const solutions = scheduler.generate();
+  // Pass timeout to generation (default 5000ms from adapter or user provided)
+  const solutions = scheduler.generate({ timeout: options.timeout || 5000 });
 
   if (solutions.length === 0) {
     console.log(`[StrictScheduler] Nenhuma solução encontrada.`);
@@ -246,18 +243,30 @@ export function runGeneticScheduler(
     };
   }
 
-  // Pegar a primeira solução válida
+  // Pegar a primeira solução válida (ou melhor parcial)
   const bestSolution = solutions[0];
-  console.log(`[StrictScheduler] ✅ Solução encontrada!`);
+  const isComplete = bestSolution.metadata?.complete !== false;
+
+  if (isComplete) {
+    console.log(`[StrictScheduler] ✅ Solução completa encontrada! (${bestSolution.metadata?.time}ms)`);
+  } else {
+    console.log(`[StrictScheduler] ⚠️ Solução parcial encontrada (Timeout). Preenchido: ${bestSolution.metadata?.assignments}/${bestSolution.metadata?.total}`);
+  }
 
   const flatSchedule = convertFromGeneticOutput(bestSolution, input, frontendTeachers, timeSlots);
-  
-  // Validate just to be sure and get formatted errors if any (should be valid)
+
+  // Validate
   const aulas = convertToValidatorFormat(bestSolution, input, frontendTeachers);
   const validation = validarGrade(aulas, regras);
 
+  // Se for parcial, adicionamos um erro de aviso na validação se ainda não houver erros fatais
+  if (!isComplete && validation.valido) {
+    validation.valido = false;
+    validation.erros.push(`A geração foi interrompida por tempo limite. A grade está ${Math.floor((bestSolution.metadata?.assignments || 0) / (bestSolution.metadata?.total || 1) * 100)}% completa.`);
+  }
+
   return {
-    success: true,
+    success: true, // Return true so frontend displays what we have
     schedule: flatSchedule,
     attempts: 1,
     bestScore: bestSolution.score,

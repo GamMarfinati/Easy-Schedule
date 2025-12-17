@@ -53,4 +53,10 @@ export interface Lesson {
 export interface ScheduleSolution {
   score: number;
   schedule: Lesson[];
+  metadata?: {
+    complete: boolean;
+    assignments: number;
+    total: number;
+    time: number;
+  };
 }
