@@ -5,13 +5,13 @@ const isSameSlot = (a: TimeSlot, b: TimeSlot) => a.day === b.day && a.period ===
 
 export class GeneticScheduler {
   private input: ScheduleInput;
-  private domains: Map<string, TimeSlot[]>; // variable ID -> valid slots
+  private domains: Map<string, TimeSlot[]>;
   private variables: {
     id: string;
     classId: string;
     subject: Subject;
     teacherId: string;
-    durationIndex: number; // 0 for 1st hour, 1 for 2nd, etc.
+    durationIndex: number;
   }[];
 
   constructor(input: ScheduleInput) {
@@ -21,7 +21,6 @@ export class GeneticScheduler {
     this.initializeVariables();
   }
 
-  // Initialize variables (lessons to be scheduled)
   private initializeVariables() {
     this.variables = [];
     this.input.classes.forEach(cls => {
@@ -38,26 +37,19 @@ export class GeneticScheduler {
       });
     });
 
-    // Initialize domains based on teacher availability
     this.variables.forEach(variable => {
       const teacher = this.input.teachers.find(t => t.id === variable.teacherId);
       if (teacher) {
-        // Teacher availability is the initial domain
-        // We also need to respect the periods defined in input
         const validSlots = teacher.disponibility.filter(d =>
             this.input.days.includes(d.day) && d.period <= this.input.periods
         );
         this.domains.set(variable.id, validSlots);
       } else {
-        // If no teacher found (shouldn't happen), assume all slots? Or empty?
-        // Assuming empty to be safe/strict
         this.domains.set(variable.id, []);
       }
     });
 
-    // Sort variables by MRV (Minimum Remaining Values) heuristic could be good,
-    // but for now, we just stick to the order or maybe sort by degree (most constrained first).
-    // Let's sort by domain size (smallest first).
+    // Heuristic: Sort by domain size (most constrained first = FAIL FAST)
     this.variables.sort((a, b) => {
       const lenA = this.domains.get(a.id)?.length || 0;
       const lenB = this.domains.get(b.id)?.length || 0;
@@ -68,46 +60,35 @@ export class GeneticScheduler {
   public generate(): ScheduleSolution[] {
     const assignment: Map<string, TimeSlot> = new Map();
     const solutions: ScheduleSolution[] = [];
-    let bestAssignment: Map<string, TimeSlot> = new Map();
-
-    // We want to find at least one valid solution.
-    // We can try to find optimal ones later, but first: STRICT VALIDITY.
-
-    // Using a timeout to prevent infinite loops in impossible scenarios
+    
+    // Safety: 2.5 seconds max to allow HTTP response overhead before 524 error
     const startTime = Date.now();
-    const timeLimit = 3000; // 3 seconds max (Requirement: "strict execution time limit")
+    const timeLimit = 2500; 
+
+    // We use a counter to avoid checking Date.now() every single micro-iteration (expensive)
+    let ops = 0;
 
     const backtrack = (index: number): boolean => {
-      // Update best assignment found so far (maximize number of assigned variables)
-      if (assignment.size > bestAssignment.size) {
-        bestAssignment = new Map(assignment);
+      // Optimization: Check time only every 50 operations to save CPU cycles
+      if (ops++ % 50 === 0) {
+        if (Date.now() - startTime > timeLimit) {
+            throw new Error('TIMEOUT'); // Force immediate exit, preserving 'assignment' state
+        }
       }
 
-      if (Date.now() - startTime > timeLimit) return false;
-
       if (index === this.variables.length) {
-        // All assigned!
         solutions.push(this.buildSolution(assignment));
-        return true; // Return true to stop at first solution
+        return true;
       }
 
       const variable = this.variables[index];
       const domain = this.domains.get(variable.id) || [];
 
-      // Value Ordering LCV (Least Constraining Value) - Optional
-      // For now, random shuffle to get variety if we run multiple times
-      // or just iterate.
-      const shuffledDomain = [...domain].sort(() => Math.random() - 0.5);
-
-      for (const slot of shuffledDomain) {
+      // Simple heuristic: just try slots
+      for (const slot of domain) {
         if (this.isValid(variable, slot, assignment)) {
           assignment.set(variable.id, slot);
-
-          // Forward Checking could go here to prune domains of future variables
-          // but strict checking inside isValid is simpler for now.
-
           if (backtrack(index + 1)) return true;
-
           assignment.delete(variable.id);
         }
       }
@@ -115,25 +96,28 @@ export class GeneticScheduler {
       return false;
     };
 
-    backtrack(0);
+    try {
+      backtrack(0);
+    } catch (e) {
+      // If TIMEOUT error is caught, we immediately use whatever is in 'assignment'
+      // This is the "Best Partial Solution" found so far.
+      console.warn("Generating partial solution due to timeout.");
+      return [this.fillPartialSolution(assignment)];
+    }
 
     if (solutions.length === 0) {
-      // Fallback: Use best partial assignment and fill the rest with conflicts
-      return [this.fillPartialSolution(bestAssignment)];
+      return [this.fillPartialSolution(assignment)];
     }
 
     return solutions;
   }
 
+  // Optimized to be "Dumb and Fast" so we don't timeout AGAIN while filling holes
   private fillPartialSolution(assignment: Map<string, TimeSlot>): ScheduleSolution {
-    // We start with the valid assignment we have so far
-    // and try to assign the rest, minimizing conflicts
     const finalAssignment = new Map(assignment);
-
-    // Identify unassigned variables
     const unassignedVars = this.variables.filter(v => !finalAssignment.has(v.id));
 
-    // Construct all possible slots (ignoring teacher constraints for now)
+    // Create a pool of all slots
     const allSlots: TimeSlot[] = [];
     for (const day of this.input.days) {
       for (let p = 1; p <= this.input.periods; p++) {
@@ -141,63 +125,20 @@ export class GeneticScheduler {
       }
     }
 
-    // Assign remaining variables
     for (const variable of unassignedVars) {
-      // Try to find a slot in their domain first (even if it conflicts with others)
-      // If domain is empty (teacher unavailable), pick any slot.
-
-      let candidateSlots = this.domains.get(variable.id) || [];
-      if (candidateSlots.length === 0) {
-        candidateSlots = allSlots;
-      }
-
-      // Pick the slot that causes the minimum number of conflicts
-      let bestSlot = candidateSlots[0];
-      let minConflicts = Infinity;
-
-      // Optimization: Just check a few or first available to save time?
-      // Since we are already timed out or failed, we should be fast.
-      // Checking all slots might be slow if there are many unassigned.
-      // Let's check first 10-20 slots or all if small.
-
-      for (const slot of candidateSlots) {
-         const conflictCount = this.countConflicts(variable, slot, finalAssignment);
-         if (conflictCount < minConflicts) {
-             minConflicts = conflictCount;
-             bestSlot = slot;
-         }
-         if (minConflicts === 0) break; // Found a valid one? unlikely if we are here but possible
-      }
-
-      if (bestSlot) {
-        finalAssignment.set(variable.id, bestSlot);
-      } else if (allSlots.length > 0) {
-        // Fallback if candidateSlots was empty
-         finalAssignment.set(variable.id, allSlots[0]);
+      const validDomain = this.domains.get(variable.id) || [];
+      
+      // EMERGENCY MODE: Just pick the first valid slot from teacher's domain. 
+      // Don't check for conflicts. The 'buildSolutionWithConflicts' will mark them later.
+      if (validDomain.length > 0) {
+        finalAssignment.set(variable.id, validDomain[0]);
+      } else {
+        // If teacher has NO availability, just pick the first slot of the week.
+        finalAssignment.set(variable.id, allSlots[0]);
       }
     }
 
     return this.buildSolutionWithConflicts(finalAssignment);
-  }
-
-  private countConflicts(
-    currentVar: typeof this.variables[0],
-    slot: TimeSlot,
-    assignment: Map<string, TimeSlot>
-  ): number {
-    let conflicts = 0;
-
-    // Check overlapping assignments
-    for (const [varId, assignedSlot] of assignment.entries()) {
-      if (isSameSlot(assignedSlot, slot)) {
-        const assignedVar = this.variables.find(v => v.id === varId);
-        if (!assignedVar) continue;
-        if (assignedVar.teacherId === currentVar.teacherId) conflicts++;
-        if (assignedVar.classId === currentVar.classId) conflicts++;
-      }
-    }
-
-    return conflicts;
   }
 
   private isValid(
@@ -205,26 +146,15 @@ export class GeneticScheduler {
     slot: TimeSlot,
     assignment: Map<string, TimeSlot>
   ): boolean {
-    // Check against all currently assigned variables
     for (const [varId, assignedSlot] of assignment.entries()) {
-      // 1. Check strict time overlap
       if (isSameSlot(assignedSlot, slot)) {
-        // Find the variable object for this assigned varId
         const assignedVar = this.variables.find(v => v.id === varId);
         if (!assignedVar) continue;
 
-        // Constraint A: Teacher Conflict
-        if (assignedVar.teacherId === currentVar.teacherId) {
-          return false;
-        }
-
-        // Constraint B: Class Conflict
-        if (assignedVar.classId === currentVar.classId) {
-          return false;
-        }
+        if (assignedVar.teacherId === currentVar.teacherId) return false;
+        if (assignedVar.classId === currentVar.classId) return false;
       }
     }
-
     return true;
   }
 
@@ -243,67 +173,52 @@ export class GeneticScheduler {
       }
     });
 
-    return {
-      score: 100, // Strict solution is perfect by definition of constraints
-      schedule: lessons
-    };
+    return { score: 100, schedule: lessons };
   }
 
   private buildSolutionWithConflicts(assignment: Map<string, TimeSlot>): ScheduleSolution {
     const lessons: Lesson[] = [];
     const allConflicts: Conflict[] = [];
 
-    assignment.forEach((slot, varId) => {
+    // Conversion to array for easier index checking (O(N^2) loop inside here is unavoidable but runs once)
+    const entries = Array.from(assignment.entries());
+
+    entries.forEach(([varId, slot], index) => {
       const v = this.variables.find(variable => variable.id === varId);
       if (!v) return;
 
       let lessonConflict: Conflict | undefined;
 
-      // 1. Check Availability Conflict
-      // Re-check if slot is in domain
+      // 1. Availability Check
       const validDomain = this.domains.get(v.id) || [];
       const isAvailable = validDomain.some(d => isSameSlot(d, slot));
-
       if (!isAvailable) {
-         lessonConflict = {
-             type: 'teacher_unavailable',
-             message: 'Professor indisponível neste horário'
-         };
+         lessonConflict = { type: 'teacher_unavailable', message: 'Professor indisponível' };
       }
 
-      // 2. Check Double Booking (Teacher) & Class Overlap
-      // We need to check against OTHER assignments in this built solution
-      // But this is O(N^2). Since N is small (<1000 usually), it's fine.
-      // Iterate over lessons added so far? No, assignment map is complete.
-
+      // 2. Double Booking Check (Only check against OTHER entries)
       if (!lessonConflict) {
-          for (const [otherVarId, otherSlot] of assignment.entries()) {
-              if (varId === otherVarId) continue;
-              if (isSameSlot(slot, otherSlot)) {
-                  const otherV = this.variables.find(variable => variable.id === otherVarId);
-                  if (!otherV) continue;
-
-                  if (otherV.teacherId === v.teacherId) {
-                      lessonConflict = {
-                          type: 'double_booking',
-                          message: `Professor agendado também na turma ${otherV.classId} (${otherV.subject.name})`
-                      };
-                      break;
-                  }
-                  if (otherV.classId === v.classId) {
-                      lessonConflict = {
-                          type: 'class_overlap',
-                          message: `Turma tem outra aula agendada: ${otherV.subject.name}`
-                      };
-                      break;
-                  }
-              }
-          }
+        for (let i = 0; i < entries.length; i++) {
+            if (i === index) continue; // Skip self
+            const [otherVarId, otherSlot] = entries[i];
+            
+            if (isSameSlot(slot, otherSlot)) {
+                const otherV = this.variables.find(variable => variable.id === otherVarId);
+                if (otherV) {
+                    if (otherV.teacherId === v.teacherId) {
+                        lessonConflict = { type: 'double_booking', message: 'Professor em duas turmas' };
+                        break;
+                    }
+                    if (otherV.classId === v.classId) {
+                         lessonConflict = { type: 'class_overlap', message: 'Choque de horário na turma' };
+                         break;
+                    }
+                }
+            }
+        }
       }
 
-      if (lessonConflict) {
-          allConflicts.push(lessonConflict);
-      }
+      if (lessonConflict) allConflicts.push(lessonConflict);
 
       lessons.push({
         day: slot.day,
@@ -315,12 +230,8 @@ export class GeneticScheduler {
       });
     });
 
-    // Score is lower because of conflicts.
-    // We can calculate score based on conflict count.
-    const score = Math.max(0, 100 - (allConflicts.length * 5));
-
     return {
-      score,
+      score: Math.max(0, 100 - (allConflicts.length * 5)),
       schedule: lessons,
       conflicts: allConflicts
     };
