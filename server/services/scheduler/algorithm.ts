@@ -1,155 +1,172 @@
-import { ScheduleInput, ScheduleSolution, Lesson, TimeSlot } from './types.js';
+import { ScheduleInput, ScheduleSolution, Lesson, TimeSlot, Teacher, ClassGroup, Subject } from './types.js';
 
-// Helper to check if two slots overlap (trivial here as slots are discrete)
+// Helper to compare slots
 const isSameSlot = (a: TimeSlot, b: TimeSlot) => a.day === b.day && a.period === b.period;
 
 export class GeneticScheduler {
   private input: ScheduleInput;
-  private populationSize = 50;
-  private generations = 100;
-  private mutationRate = 0.1;
+  private domains: Map<string, TimeSlot[]>; // variable ID -> valid slots
+  private variables: {
+    id: string;
+    classId: string;
+    subject: Subject;
+    teacherId: string;
+    durationIndex: number; // 0 for 1st hour, 1 for 2nd, etc.
+  }[];
 
   constructor(input: ScheduleInput) {
     this.input = input;
+    this.variables = [];
+    this.domains = new Map();
+    this.initializeVariables();
   }
 
-  public generate(): ScheduleSolution[] {
-    let population = this.initializePopulation();
-    
-    for (let i = 0; i < this.generations; i++) {
-      population.sort((a, b) => b.score - a.score);
-      
-      // Elitism: keep top 10%
-      const newPopulation = population.slice(0, Math.floor(this.populationSize * 0.1));
-      
-      while (newPopulation.length < this.populationSize) {
-        const parent1 = this.selectParent(population);
-        const parent2 = this.selectParent(population);
-        let child = this.crossover(parent1, parent2);
-        if (Math.random() < this.mutationRate) {
-          child = this.mutate(child);
-        }
-        child.score = this.calculateFitness(child.schedule);
-        newPopulation.push(child);
-      }
-      population = newPopulation;
-    }
-
-    // Return top 3 unique solutions
-    return population.sort((a, b) => b.score - a.score).slice(0, 3);
-  }
-
-  private initializePopulation(): ScheduleSolution[] {
-    const population: ScheduleSolution[] = [];
-    for (let i = 0; i < this.populationSize; i++) {
-      const schedule = this.generateRandomSchedule();
-      population.push({
-        schedule,
-        score: this.calculateFitness(schedule)
-      });
-    }
-    return population;
-  }
-
-  private generateRandomSchedule(): Lesson[] {
-    const lessons: Lesson[] = [];
-    
-    // For each class and subject, assign random slots needed
+  // Initialize variables (lessons to be scheduled)
+  private initializeVariables() {
+    this.variables = [];
     this.input.classes.forEach(cls => {
       cls.subjects.forEach(sub => {
         for (let i = 0; i < sub.hours_per_week; i++) {
-          const randomDay = this.input.days[Math.floor(Math.random() * this.input.days.length)];
-          const randomPeriod = Math.floor(Math.random() * this.input.periods) + 1;
-          
-          lessons.push({
-            day: randomDay,
-            period: randomPeriod,
-            class_id: cls.id,
-            subject: sub.name,
-            teacher_id: sub.teacher_id,
-            // classroom assignment omitted for brevity in MVP
+          this.variables.push({
+            id: `${cls.id}-${sub.name}-${i}`,
+            classId: cls.id,
+            subject: sub,
+            teacherId: sub.teacher_id,
+            durationIndex: i
           });
         }
       });
     });
-    
-    return lessons;
-  }
 
-  private calculateFitness(schedule: Lesson[]): number {
-    let score = 100;
-    
-    // Constraint 1: Teacher conflict (same teacher in 2 places at once)
-    const teacherConflicts = this.countConflicts(schedule, 'teacher_id');
-    score -= teacherConflicts * 10;
-
-    // Constraint 2: Class conflict (same class has 2 lessons at once)
-    const classConflicts = this.countConflicts(schedule, 'class_id');
-    score -= classConflicts * 10;
-
-    // Constraint 3: Teacher availability
-    schedule.forEach(lesson => {
-      const teacher = this.input.teachers.find(t => t.id === lesson.teacher_id);
+    // Initialize domains based on teacher availability
+    this.variables.forEach(variable => {
+      const teacher = this.input.teachers.find(t => t.id === variable.teacherId);
       if (teacher) {
-        const isAvailable = teacher.disponibility.some(slot => 
-          slot.day === lesson.day && slot.period === lesson.period
+        // Teacher availability is the initial domain
+        // We also need to respect the periods defined in input
+        const validSlots = teacher.disponibility.filter(d =>
+            this.input.days.includes(d.day) && d.period <= this.input.periods
         );
-        if (!isAvailable) score -= 5; // Penalty for unavailable slot
+        this.domains.set(variable.id, validSlots);
+      } else {
+        // If no teacher found (shouldn't happen), assume all slots? Or empty?
+        // Assuming empty to be safe/strict
+        this.domains.set(variable.id, []);
       }
     });
 
-    return Math.max(0, score);
-  }
-
-  private countConflicts(schedule: Lesson[], key: keyof Lesson): number {
-    let conflicts = 0;
-    const groups = new Map<string, Lesson[]>();
-
-    schedule.forEach(l => {
-      const k = `${l[key]}-${l.day}-${l.period}`;
-      if (!groups.has(k)) groups.set(k, []);
-      groups.get(k)!.push(l);
+    // Sort variables by MRV (Minimum Remaining Values) heuristic could be good,
+    // but for now, we just stick to the order or maybe sort by degree (most constrained first).
+    // Let's sort by domain size (smallest first).
+    this.variables.sort((a, b) => {
+      const lenA = this.domains.get(a.id)?.length || 0;
+      const lenB = this.domains.get(b.id)?.length || 0;
+      return lenA - lenB;
     });
-
-    groups.forEach(lessons => {
-      if (lessons.length > 1) conflicts += lessons.length - 1;
-    });
-
-    return conflicts;
   }
 
-  private selectParent(population: ScheduleSolution[]): ScheduleSolution {
-    // Tournament selection
-    const k = 3;
-    let best = population[Math.floor(Math.random() * population.length)];
-    for (let i = 0; i < k - 1; i++) {
-      const contender = population[Math.floor(Math.random() * population.length)];
-      if (contender.score > best.score) best = contender;
-    }
-    return best;
-  }
+  public generate(): ScheduleSolution[] {
+    const assignment: Map<string, TimeSlot> = new Map();
+    const solutions: ScheduleSolution[] = [];
 
-  private crossover(p1: ScheduleSolution, p2: ScheduleSolution): ScheduleSolution {
-    // Single point crossover
-    const point = Math.floor(Math.random() * p1.schedule.length);
-    const childSchedule = [
-      ...p1.schedule.slice(0, point),
-      ...p2.schedule.slice(point)
-    ];
-    return { schedule: childSchedule, score: 0 };
-  }
+    // We want to find at least one valid solution.
+    // We can try to find optimal ones later, but first: STRICT VALIDITY.
 
-  private mutate(solution: ScheduleSolution): ScheduleSolution {
-    const schedule = [...solution.schedule];
-    const idx = Math.floor(Math.random() * schedule.length);
-    
-    // Move a random lesson to a new random slot
-    schedule[idx] = {
-      ...schedule[idx],
-      day: this.input.days[Math.floor(Math.random() * this.input.days.length)],
-      period: Math.floor(Math.random() * this.input.periods) + 1
+    // Using a timeout to prevent infinite loops in impossible scenarios
+    const startTime = Date.now();
+    const timeLimit = 30000; // 30 seconds max
+
+    const backtrack = (index: number): boolean => {
+      if (Date.now() - startTime > timeLimit) return false;
+
+      if (index === this.variables.length) {
+        // All assigned!
+        solutions.push(this.buildSolution(assignment));
+        return true; // Return true to stop at first solution
+      }
+
+      const variable = this.variables[index];
+      const domain = this.domains.get(variable.id) || [];
+
+      // Value Ordering LCV (Least Constraining Value) - Optional
+      // For now, random shuffle to get variety if we run multiple times
+      // or just iterate.
+      const shuffledDomain = [...domain].sort(() => Math.random() - 0.5);
+
+      for (const slot of shuffledDomain) {
+        if (this.isValid(variable, slot, assignment)) {
+          assignment.set(variable.id, slot);
+
+          // Forward Checking could go here to prune domains of future variables
+          // but strict checking inside isValid is simpler for now.
+
+          if (backtrack(index + 1)) return true;
+
+          assignment.delete(variable.id);
+        }
+      }
+
+      return false;
     };
-    
-    return { schedule, score: 0 };
+
+    backtrack(0);
+
+    if (solutions.length === 0) {
+      // Fallback: Return empty or partial?
+      // User requested strict adherence. If strict fails, maybe we return what we have?
+      // Or we just return empty array.
+      return [];
+    }
+
+    return solutions;
+  }
+
+  private isValid(
+    currentVar: typeof this.variables[0],
+    slot: TimeSlot,
+    assignment: Map<string, TimeSlot>
+  ): boolean {
+    // Check against all currently assigned variables
+    for (const [varId, assignedSlot] of assignment.entries()) {
+      // 1. Check strict time overlap
+      if (isSameSlot(assignedSlot, slot)) {
+        // Find the variable object for this assigned varId
+        const assignedVar = this.variables.find(v => v.id === varId);
+        if (!assignedVar) continue;
+
+        // Constraint A: Teacher Conflict
+        if (assignedVar.teacherId === currentVar.teacherId) {
+          return false;
+        }
+
+        // Constraint B: Class Conflict
+        if (assignedVar.classId === currentVar.classId) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  private buildSolution(assignment: Map<string, TimeSlot>): ScheduleSolution {
+    const lessons: Lesson[] = [];
+    assignment.forEach((slot, varId) => {
+      const v = this.variables.find(variable => variable.id === varId);
+      if (v) {
+        lessons.push({
+          day: slot.day,
+          period: slot.period,
+          class_id: v.classId,
+          subject: v.subject.name,
+          teacher_id: v.teacherId
+        });
+      }
+    });
+
+    return {
+      score: 100, // Strict solution is perfect by definition of constraints
+      schedule: lessons
+    };
   }
 }
