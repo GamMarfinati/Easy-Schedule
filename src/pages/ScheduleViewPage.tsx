@@ -53,8 +53,12 @@ const ScheduleViewPage: React.FC = () => {
 
     // Extract all distinct grades from the schedule
     Object.values(schedule).forEach(daySchedule => {
-        Object.values(daySchedule).forEach(slots => {
-            slots.forEach(slot => grades.add(slot.grade));
+        Object.values(daySchedule).forEach((slots: any[]) => {
+            slots.forEach(slot => {
+              // Garante que pega o nome da turma independente se vier como grade ou class_id
+              const className = slot.grade || slot.class_id;
+              if (className) grades.add(className);
+            });
         });
     });
 
@@ -132,13 +136,14 @@ const ScheduleViewPage: React.FC = () => {
         <tr>
           <td class="slot-header">${slot}</td>
           ${DAYS_OF_WEEK.map(day => {
-            const cellItems = schedule[day]?.[slot];
+            const cellItems: any[] = schedule[day]?.[slot] || [];
             if (!cellItems || cellItems.length === 0) return '<td></td>';
 
             const content = cellItems.map(item => {
+                const className = item.grade || item.class_id;
                 const conflictClass = item.conflict ? 'conflict' : '';
                 const conflictText = item.conflict ? `<br/><span style="color:red;font-weight:bold;">⚠️ ${item.conflict.message}</span>` : '';
-                return `<div class="cell-content ${conflictClass}">${item.grade} - ${item.subject} (${item.teacherName})${conflictText}</div>`;
+                return `<div class="cell-content ${conflictClass}">${className} - ${item.subject} (${item.teacherName})${conflictText}</div>`;
             }).join('');
 
             return `<td>${content}</td>`;
@@ -219,10 +224,9 @@ const ScheduleViewPage: React.FC = () => {
               </svg>
             </div>
             <div className="ml-3">
-              <p className="text-sm text-yellow-700">
-                Atenção: Esta grade foi gerada com conflitos porque não foi possível encontrar uma solução perfeita dentro do tempo limite.
-                Verifique as células em vermelho.
-              </p>
+              <div className="text-sm text-yellow-700">
+                <p>Atenção: Esta grade foi gerada com conflitos. Verifique as células em vermelho.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -291,50 +295,4 @@ const ScheduleViewPage: React.FC = () => {
 
           {DEFAULT_TIME_SLOTS.map(slot => (
             <React.Fragment key={slot}>
-              <div className="font-bold text-gray-700 text-sm p-2 flex items-center justify-center bg-gray-100 rounded-l-lg">{slot}</div>
-              {DAYS_OF_WEEK.map(day => {
-                const cellItems = schedule[day]?.[slot] || [];
-                // Filter items based on activeTab
-                const displayedItems = activeTab === 'Visão Geral'
-                    ? cellItems
-                    : cellItems.filter(item => item.grade === activeTab);
-
-                return (
-                  <div key={`${day}-${slot}`} className="min-h-24 h-auto bg-gray-50 rounded-md p-1 flex flex-col gap-1">
-                    {displayedItems.map((item, idx) => {
-                       const isConflict = !!item.conflict;
-                       return (
-                        <div key={idx} className={`${isConflict ? 'bg-red-100 border-red-400' : 'bg-blue-50 border-blue-400'} p-2 rounded-lg flex flex-col justify-center text-center border-l-4 text-xs transition-colors duration-200 relative group`}>
-                            <p className={`font-bold text-sm ${isConflict ? 'text-red-900' : 'text-blue-900'}`}>{item.grade}</p>
-                            <p className={`${isConflict ? 'text-red-800' : 'text-blue-800'} font-medium`}>{item.subject}</p>
-                            <p className="text-gray-500 italic mt-1">{item.teacherName}</p>
-
-                            {isConflict && (
-                              <div className="absolute top-1 right-1">
-                                <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                </svg>
-                              </div>
-                            )}
-
-                            {/* Tooltip for conflict */}
-                            {isConflict && (
-                               <div className="hidden group-hover:block absolute z-20 w-48 p-2 mt-1 text-xs text-white bg-red-800 rounded-lg shadow-lg -top-10 left-1/2 transform -translate-x-1/2">
-                                 {item.conflict?.message || 'Conflito detectado'}
-                               </div>
-                            )}
-                        </div>
-                       );
-                    })}
-                  </div>
-                );
-              })}
-            </React.Fragment>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default ScheduleViewPage;
+              <div className="font-bold text-gray-
