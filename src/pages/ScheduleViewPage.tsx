@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { Schedule } from '../../types';
 import { DAYS_OF_WEEK, DEFAULT_TIME_SLOTS } from '../../constants';
+import Loader from '../components/Loader';
 
 interface ScheduleData {
   id: string;
@@ -29,6 +30,7 @@ const ScheduleViewPage: React.FC = () => {
   const [scheduleData, setScheduleData] = useState<ScheduleData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>('Visão Geral');
 
   useEffect(() => {
     if (!id) return;
@@ -43,6 +45,28 @@ const ScheduleViewPage: React.FC = () => {
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  const classes = useMemo(() => {
+    if (!scheduleData) return [];
+    const schedule = scheduleData.data.schedule;
+    const grades = new Set<string>();
+
+    // Extract all distinct grades from the schedule
+    Object.values(schedule).forEach(daySchedule => {
+        Object.values(daySchedule).forEach(slots => {
+            slots.forEach(slot => grades.add(slot.grade));
+        });
+    });
+
+    return Array.from(grades).sort();
+  }, [scheduleData]);
+
+  useEffect(() => {
+    // Set default tab to first class if available
+    if (classes.length > 0 && activeTab === 'Visão Geral') {
+      setActiveTab(classes[0]);
+    }
+  }, [classes]); // Run once when classes are loaded
 
   const handleDelete = async () => {
     if (!id) return;
@@ -133,11 +157,7 @@ const ScheduleViewPage: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+    return <Loader />;
   }
 
   if (error || !scheduleData) {
@@ -232,6 +252,35 @@ const ScheduleViewPage: React.FC = () => {
         </div>
       )}
 
+      {/* Tabs */}
+      <div className="mb-4 border-b border-gray-200 overflow-x-auto">
+        <nav className="-mb-px flex space-x-6 min-w-max" aria-label="Tabs">
+            <button
+                onClick={() => setActiveTab('Visão Geral')}
+                className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'Visão Geral'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+                Visão Geral
+            </button>
+            {classes.map(cls => (
+                <button
+                key={cls}
+                onClick={() => setActiveTab(cls)}
+                className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === cls
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+                >
+                {cls}
+                </button>
+            ))}
+        </nav>
+      </div>
+
       {/* Schedule Grid */}
       <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-lg overflow-x-auto">
         <div className="grid grid-cols-6 gap-1 min-w-[700px]">
@@ -245,10 +294,14 @@ const ScheduleViewPage: React.FC = () => {
               <div className="font-bold text-gray-700 text-sm p-2 flex items-center justify-center bg-gray-100 rounded-l-lg">{slot}</div>
               {DAYS_OF_WEEK.map(day => {
                 const cellItems = schedule[day]?.[slot] || [];
+                // Filter items based on activeTab
+                const displayedItems = activeTab === 'Visão Geral'
+                    ? cellItems
+                    : cellItems.filter(item => item.grade === activeTab);
 
                 return (
                   <div key={`${day}-${slot}`} className="min-h-24 h-auto bg-gray-50 rounded-md p-1 flex flex-col gap-1">
-                    {cellItems.map((item, idx) => {
+                    {displayedItems.map((item, idx) => {
                        const isConflict = !!item.conflict;
                        return (
                         <div key={idx} className={`${isConflict ? 'bg-red-100 border-red-400' : 'bg-blue-50 border-blue-400'} p-2 rounded-lg flex flex-col justify-center text-center border-l-4 text-xs transition-colors duration-200 relative group`}>

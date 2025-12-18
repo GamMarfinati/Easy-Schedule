@@ -222,7 +222,7 @@ export class GeneticScheduler {
           } else {
               // Check if it fills a gap
               if (slot.period > minP && slot.period < maxP) {
-                  score -= 500; // Huge bonus for filling a hole!
+                  score -= 1000; // HUGE bonus for filling a hole! Increased from -500 to ensure it beats conflict penalties if needed or effectively forcing usage
               } else {
                   // It's disjoint (creating a gap)
                   // Distance to nearest block
@@ -231,13 +231,14 @@ export class GeneticScheduler {
                   const dist = Math.min(distMin, distMax);
 
                   if (dist > 1) {
-                      score += (dist * 100); // Penalty proportional to distance
+                      score += (dist * 200); // Increased Penalty proportional to distance
                   }
               }
           }
       } else {
           // First lesson of the day for this class.
-          // score += slot.period; // Slight preference for earlier slots?
+          // Prefer earlier slots slightly to avoid random evening classes if morning is empty?
+          score += slot.period * 10;
       }
 
       return score;
