@@ -24,7 +24,7 @@ const slotKey = (slot: TimeSlot) => `${slot.day}-${slot.period}`;
 
 export class GeneticScheduler {
   private input: ScheduleInput;
-  private maxNodes = 50000;
+  private maxNodes = 5000000;
 
   // Declaração das propriedades que faltavam
   private variables: SchedulerVariable[];
