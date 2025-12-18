@@ -65,12 +65,14 @@ const ScheduleViewPage: React.FC = () => {
     return Array.from(grades).sort();
   }, [scheduleData]);
 
+  // Se não houver aba ativa definida e carregarmos as turmas, define a primeira como padrão
   useEffect(() => {
-    // Set default tab to first class if available
     if (classes.length > 0 && activeTab === 'Visão Geral') {
-      setActiveTab(classes[0]);
+      // Se quiser que o padrão seja "Visão Geral", mantenha 'Visão Geral'.
+      // Se quiser que selecione a primeira turma automaticamente, descomente abaixo:
+      // setActiveTab(classes[0]);
     }
-  }, [classes]); // Run once when classes are loaded
+  }, [classes]);
 
   const handleDelete = async () => {
     if (!id) return;
@@ -90,7 +92,7 @@ const ScheduleViewPage: React.FC = () => {
     const schedule = scheduleData.data.schedule;
     const title = scheduleData.name;
     
-    // Gerar HTML formatado
+    // Gerar HTML formatado para impressão
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       alert('Por favor, permita pop-ups para baixar o PDF.');
@@ -142,8 +144,8 @@ const ScheduleViewPage: React.FC = () => {
             const content = cellItems.map(item => {
                 const className = item.grade || item.class_id;
                 const conflictClass = item.conflict ? 'conflict' : '';
-                const conflictText = item.conflict ? `<br/><span style="color:red;font-weight:bold;">⚠️ ${item.conflict.message}</span>` : '';
-                return `<div class="cell-content ${conflictClass}">${className} - ${item.subject} (${item.teacherName})${conflictText}</div>`;
+                const conflictText = item.conflict ? `<br/><span style="color:red;font-weight:bold;">⚠️ ${item.conflict.message || 'Conflito'}</span>` : '';
+                return `<div class="cell-content ${conflictClass}"><strong>${className}</strong><br/>${item.subject} (${item.teacherName})${conflictText}</div>`;
             }).join('');
 
             return `<td>${content}</td>`;
@@ -180,7 +182,7 @@ const ScheduleViewPage: React.FC = () => {
   const metadata = scheduleData.data.metadata;
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto pb-10">
       {/* Header */}
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -216,16 +218,16 @@ const ScheduleViewPage: React.FC = () => {
 
       {/* Warning for conflicts */}
       {metadata?.hasConflicts && (
-        <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+        <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4">
           <div className="flex">
             <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <svg className="h-5 w-5 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
             </div>
             <div className="ml-3">
-              <div className="text-sm text-yellow-700">
-                <p>Atenção: Esta grade foi gerada com conflitos. Verifique as células em vermelho.</p>
+              <div className="text-sm text-red-700 font-medium">
+                <p>Atenção: Esta grade contém conflitos (células vermelhas).</p>
               </div>
             </div>
           </div>
@@ -235,21 +237,21 @@ const ScheduleViewPage: React.FC = () => {
       {/* Metadata */}
       {metadata && (
         <div className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-white p-4 rounded-lg shadow">
-            <p className="text-xs text-gray-500">Professores</p>
+          <div className="bg-white p-4 rounded-lg shadow border border-gray-100">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">Professores</p>
             <p className="text-xl font-bold text-gray-900">{metadata.teachersCount || '-'}</p>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <p className="text-xs text-gray-500">Períodos</p>
+          <div className="bg-white p-4 rounded-lg shadow border border-gray-100">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">Períodos</p>
             <p className="text-xl font-bold text-gray-900">{metadata.timeSlotsCount || '-'}</p>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <p className="text-xs text-gray-500">Tentativas de Geração</p>
+          <div className="bg-white p-4 rounded-lg shadow border border-gray-100">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">Tentativas</p>
             <p className="text-xl font-bold text-gray-900">{metadata.generationAttempts || 1}</p>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <p className="text-xs text-gray-500">Status</p>
-            <p className={`text-xl font-bold ${scheduleData.status === 'published' ? 'text-green-600' : 'text-yellow-600'}`}>
+          <div className="bg-white p-4 rounded-lg shadow border border-gray-100">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">Status</p>
+            <p className={`text-xl font-bold ${scheduleData.status === 'published' ? 'text-green-600' : 'text-indigo-600'}`}>
               {scheduleData.status === 'published' ? 'Publicada' : 'Rascunho'}
             </p>
           </div>
@@ -257,11 +259,11 @@ const ScheduleViewPage: React.FC = () => {
       )}
 
       {/* Tabs */}
-      <div className="mb-4 border-b border-gray-200 overflow-x-auto">
+      <div className="mb-6 border-b border-gray-200 overflow-x-auto bg-white rounded-t-lg px-4 shadow-sm">
         <nav className="-mb-px flex space-x-6 min-w-max" aria-label="Tabs">
             <button
                 onClick={() => setActiveTab('Visão Geral')}
-                className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+                className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === 'Visão Geral'
                     ? 'border-indigo-500 text-indigo-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -273,7 +275,7 @@ const ScheduleViewPage: React.FC = () => {
                 <button
                 key={cls}
                 onClick={() => setActiveTab(cls)}
-                className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+                className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                     activeTab === cls
                     ? 'border-indigo-500 text-indigo-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -286,13 +288,72 @@ const ScheduleViewPage: React.FC = () => {
       </div>
 
       {/* Schedule Grid */}
-      <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-lg overflow-x-auto">
-        <div className="grid grid-cols-6 gap-1 min-w-[700px]">
-          <div className="font-bold text-gray-500 text-sm p-2">Horário</div>
+      <div className="bg-white p-4 sm:p-6 rounded-b-2xl rounded-t-lg shadow-lg overflow-x-auto border border-gray-100">
+        <div className="grid grid-cols-6 gap-0 min-w-[800px] border border-gray-200 rounded-lg overflow-hidden">
+          {/* Header Row */}
+          <div className="font-bold text-gray-500 text-sm p-3 bg-gray-50 border-r border-b border-gray-200 flex items-center justify-center">Horário</div>
           {DAYS_OF_WEEK.map(day => (
-            <div key={day} className="font-bold text-gray-700 text-center text-sm p-2 bg-gray-100 rounded-t-lg">{day}</div>
+            <div key={day} className="font-bold text-gray-700 text-center text-sm p-3 bg-indigo-50 border-b border-gray-200 border-r last:border-r-0">{day}</div>
           ))}
 
+          {/* Grid Content */}
           {DEFAULT_TIME_SLOTS.map(slot => (
             <React.Fragment key={slot}>
-              <div className="font-bold text-gray-
+              {/* Time Slot Column */}
+              <div className="font-bold text-gray-500 text-xs flex items-center justify-center p-2 border-r border-b border-gray-200 bg-gray-50">
+                {slot}
+              </div>
+
+              {/* Day Columns */}
+              {DAYS_OF_WEEK.map(day => {
+                const cellItems = schedule[day]?.[slot] || [];
+                
+                // FILTER: Only show items that match the active tab
+                const filteredItems = activeTab === 'Visão Geral' 
+                    ? cellItems // Show all in Overview
+                    : cellItems.filter((item: any) => (item.grade || item.class_id) === activeTab);
+
+                return (
+                  <div key={`${day}-${slot}`} className="p-2 border-r border-b border-gray-200 last:border-r-0 min-h-[80px] relative bg-white hover:bg-gray-50 transition-colors">
+                    {filteredItems.length > 0 ? (
+                      <div className="flex flex-col gap-2">
+                        {filteredItems.map((item: any, idx: number) => {
+                            const isConflict = !!item.conflict;
+                            return (
+                                <div 
+                                    key={idx} 
+                                    className={`p-2 rounded border-l-4 text-xs shadow-sm ${
+                                        isConflict 
+                                        ? 'bg-red-50 border-red-500 text-red-900' // Red style for conflict
+                                        : 'bg-indigo-50 border-indigo-400 text-indigo-900' // Blue style normal
+                                    }`}
+                                >
+                                    <div className="font-bold text-xs mb-0.5">{item.grade || item.class_id}</div>
+                                    <div className="font-semibold">{item.subject}</div>
+                                    <div className="text-gray-600 text-[10px]">{item.teacherName}</div>
+                                    {isConflict && (
+                                        <div className="mt-1 text-[10px] font-bold text-red-600 flex items-center gap-1">
+                                            <span title={item.conflict.message}>⚠️ Conflito</span>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <span className="text-gray-300 text-xs">-</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ScheduleViewPage;
