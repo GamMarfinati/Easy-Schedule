@@ -187,7 +187,8 @@ export class GeneticScheduler {
       const classSlotsOnDay: number[] = [];
       for (const [varId, assignedSlot] of assignment.entries()) {
           const assignedVar = this.variables.find(v => v.id === varId);
-          if (assignedVar && assignedVar.classId === variable.classId && assignedVar.day === slot.day) {
+          // FIX: Use assignedSlot.day instead of assignedVar.day (which doesn't exist)
+          if (assignedVar && assignedVar.classId === variable.classId && assignedSlot.day === slot.day) {
               classSlotsOnDay.push(assignedSlot.period);
           }
       }
@@ -205,7 +206,7 @@ export class GeneticScheduler {
           } else {
               // Check if it fills a gap
               if (slot.period > minP && slot.period < maxP) {
-                  score -= 1000; // HUGE bonus for filling a hole! Increased from -500 to ensure it beats conflict penalties if needed or effectively forcing usage
+                  score -= 1000; // HUGE bonus for filling a hole!
               } else {
                   // It's disjoint (creating a gap)
                   // Distance to nearest block
@@ -220,7 +221,7 @@ export class GeneticScheduler {
           }
       } else {
           // First lesson of the day for this class.
-          // Prefer earlier slots slightly to avoid random evening classes if morning is empty?
+          // Prefer earlier slots slightly
           score += slot.period * 10;
       }
 
@@ -303,10 +304,6 @@ export class GeneticScheduler {
       }
 
       // 2. Check Double Booking (Teacher) & Class Overlap
-      // We need to check against OTHER assignments in this built solution
-      // But this is O(N^2). Since N is small (<1000 usually), it's fine.
-      // Iterate over lessons added so far? No, assignment map is complete.
-
       // Prioritize identifying Class Overlap as it is visually more important to fix in grid
       for (const [otherVarId, otherSlot] of assignment.entries()) {
           if (varId === otherVarId) continue;
