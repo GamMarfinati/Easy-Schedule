@@ -11,11 +11,24 @@ interface LessonRequest {
   index: number; // stable ordering for determinism
 }
 
+// Interface auxiliar para corrigir o erro de tipagem
+interface SchedulerVariable {
+  id: string;
+  classId: string;
+  subject: Subject;
+  teacherId: string;
+  durationIndex: number;
+}
+
 const slotKey = (slot: TimeSlot) => `${slot.day}-${slot.period}`;
 
 export class GeneticScheduler {
   private input: ScheduleInput;
   private maxNodes = 50000;
+
+  // Declaração das propriedades que faltavam
+  private variables: SchedulerVariable[];
+  private domains: Map<string, TimeSlot[]>;
 
   constructor(input: ScheduleInput) {
     this.input = input;
