@@ -30,6 +30,7 @@ interface ScheduleSlot {
     grade: string;
     subject: string;
     teacherName: string;
+    conflict?: { type: string; message: string };
 }
 
 // Cada slot pode ter múltiplas aulas (uma para cada turma)
@@ -58,6 +59,7 @@ const transformFlatScheduleToNested = (flatSchedule: any[], timeSlots: string[])
                     grade: item.grade,
                     subject: item.subject,
                     teacherName: item.teacherName,
+                    conflict: item.conflict
                 });
             }
         }

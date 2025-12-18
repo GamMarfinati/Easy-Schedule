@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { Schedule } from '../../types';
 import { DAYS_OF_WEEK, DEFAULT_TIME_SLOTS } from '../../constants';
+import Loader from '../components/Loader';
 
 interface ScheduleData {
   id: string;
@@ -16,6 +17,7 @@ interface ScheduleData {
       teachersCount: number;
       timeSlotsCount: number;
       savedAt: string;
+      hasConflicts?: boolean;
     };
   };
   created_at: string;
@@ -28,6 +30,7 @@ const ScheduleViewPage: React.FC = () => {
   const [scheduleData, setScheduleData] = useState<ScheduleData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>('Visão Geral');
 
   useEffect(() => {
     if (!id) return;
@@ -42,6 +45,28 @@ const ScheduleViewPage: React.FC = () => {
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  const classes = useMemo(() => {
+    if (!scheduleData) return [];
+    const schedule = scheduleData.data.schedule;
+    const grades = new Set<string>();
+
+    // Extract all distinct grades from the schedule
+    Object.values(schedule).forEach(daySchedule => {
+        Object.values(daySchedule).forEach(slots => {
+            slots.forEach(slot => grades.add(slot.grade));
+        });
+    });
+
+    return Array.from(grades).sort();
+  }, [scheduleData]);
+
+  useEffect(() => {
+    // Set default tab to first class if available
+    if (classes.length > 0 && activeTab === 'Visão Geral') {
+      setActiveTab(classes[0]);
+    }
+  }, [classes]); // Run once when classes are loaded
 
   const handleDelete = async () => {
     if (!id) return;
@@ -84,7 +109,9 @@ const ScheduleViewPage: React.FC = () => {
     th { background: #6366f1; color: white; padding: 10px 8px; text-align: center; font-weight: 600; }
     td { border: 1px solid #e5e7eb; padding: 8px; text-align: center; vertical-align: middle; min-height: 50px; }
     .slot-header { background: #f3f4f6; font-weight: 600; color: #374151; }
-    .cell-content { background: #eff6ff; border-left: 3px solid #3b82f6; padding: 6px; border-radius: 4px; font-size: 10px; }
+    .cell-content { background: #eff6ff; border-left: 3px solid #3b82f6; padding: 6px; border-radius: 4px; font-size: 10px; margin-bottom: 4px; }
+    .cell-content.conflict { background: #fee2e2; border-left-color: #ef4444; }
+    .cell-content.conflict p { color: #991b1b; }
     .footer { margin-top: 20px; text-align: center; color: #9ca3af; font-size: 10px; }
   </style>
 </head>
@@ -105,8 +132,16 @@ const ScheduleViewPage: React.FC = () => {
         <tr>
           <td class="slot-header">${slot}</td>
           ${DAYS_OF_WEEK.map(day => {
-            const cell = schedule[day]?.[slot];
-            return `<td>${cell ? `<div class="cell-content">${cell.grade} - ${cell.subject} (${cell.teacherName})</div>` : ''}</td>`;
+            const cellItems = schedule[day]?.[slot];
+            if (!cellItems || cellItems.length === 0) return '<td></td>';
+
+            const content = cellItems.map(item => {
+                const conflictClass = item.conflict ? 'conflict' : '';
+                const conflictText = item.conflict ? `<br/><span style="color:red;font-weight:bold;">⚠️ ${item.conflict.message}</span>` : '';
+                return `<div class="cell-content ${conflictClass}">${item.grade} - ${item.subject} (${item.teacherName})${conflictText}</div>`;
+            }).join('');
+
+            return `<td>${content}</td>`;
           }).join('')}
         </tr>
       `).join('')}
@@ -122,11 +157,7 @@ const ScheduleViewPage: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+    return <Loader />;
   }
 
   if (error || !scheduleData) {
@@ -178,6 +209,25 @@ const ScheduleViewPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Warning for conflicts */}
+      {metadata?.hasConflicts && (
+        <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-yellow-700">
+                Atenção: Esta grade foi gerada com conflitos porque não foi possível encontrar uma solução perfeita dentro do tempo limite.
+                Verifique as células em vermelho.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Metadata */}
       {metadata && (
         <div className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -202,6 +252,35 @@ const ScheduleViewPage: React.FC = () => {
         </div>
       )}
 
+      {/* Tabs */}
+      <div className="mb-4 border-b border-gray-200 overflow-x-auto">
+        <nav className="-mb-px flex space-x-6 min-w-max" aria-label="Tabs">
+            <button
+                onClick={() => setActiveTab('Visão Geral')}
+                className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'Visão Geral'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+                Visão Geral
+            </button>
+            {classes.map(cls => (
+                <button
+                key={cls}
+                onClick={() => setActiveTab(cls)}
+                className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === cls
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+                >
+                {cls}
+                </button>
+            ))}
+        </nav>
+      </div>
+
       {/* Schedule Grid */}
       <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-lg overflow-x-auto">
         <div className="grid grid-cols-6 gap-1 min-w-[700px]">
@@ -214,16 +293,39 @@ const ScheduleViewPage: React.FC = () => {
             <React.Fragment key={slot}>
               <div className="font-bold text-gray-700 text-sm p-2 flex items-center justify-center bg-gray-100 rounded-l-lg">{slot}</div>
               {DAYS_OF_WEEK.map(day => {
-                const cell = schedule[day]?.[slot];
+                const cellItems = schedule[day]?.[slot] || [];
+                // Filter items based on activeTab
+                const displayedItems = activeTab === 'Visão Geral'
+                    ? cellItems
+                    : cellItems.filter(item => item.grade === activeTab);
+
                 return (
-                  <div key={`${day}-${slot}`} className="h-24 bg-gray-50 rounded-md">
-                    {cell && (
-                      <div className="bg-blue-50 p-2 rounded-lg h-full flex flex-col justify-center text-center border-l-4 border-blue-400 text-xs">
-                        <p className="font-bold text-sm text-blue-900">{cell.grade}</p>
-                        <p className="text-blue-800 font-medium">{cell.subject}</p>
-                        <p className="text-gray-500 italic mt-1">{cell.teacherName}</p>
-                      </div>
-                    )}
+                  <div key={`${day}-${slot}`} className="min-h-24 h-auto bg-gray-50 rounded-md p-1 flex flex-col gap-1">
+                    {displayedItems.map((item, idx) => {
+                       const isConflict = !!item.conflict;
+                       return (
+                        <div key={idx} className={`${isConflict ? 'bg-red-100 border-red-400' : 'bg-blue-50 border-blue-400'} p-2 rounded-lg flex flex-col justify-center text-center border-l-4 text-xs transition-colors duration-200 relative group`}>
+                            <p className={`font-bold text-sm ${isConflict ? 'text-red-900' : 'text-blue-900'}`}>{item.grade}</p>
+                            <p className={`${isConflict ? 'text-red-800' : 'text-blue-800'} font-medium`}>{item.subject}</p>
+                            <p className="text-gray-500 italic mt-1">{item.teacherName}</p>
+
+                            {isConflict && (
+                              <div className="absolute top-1 right-1">
+                                <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            )}
+
+                            {/* Tooltip for conflict */}
+                            {isConflict && (
+                               <div className="hidden group-hover:block absolute z-20 w-48 p-2 mt-1 text-xs text-white bg-red-800 rounded-lg shadow-lg -top-10 left-1/2 transform -translate-x-1/2">
+                                 {item.conflict?.message || 'Conflito detectado'}
+                               </div>
+                            )}
+                        </div>
+                       );
+                    })}
                   </div>
                 );
               })}

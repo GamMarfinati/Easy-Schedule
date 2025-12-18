@@ -1,4 +1,4 @@
-import { ScheduleInput, ScheduleSolution, Lesson, TimeSlot } from './types.js';
+import { ScheduleInput, ScheduleSolution, Lesson, TimeSlot, Teacher, ClassGroup, Subject, Conflict } from './types.js';
 
 // Deterministic scheduler using backtracking with heuristic ordering.
 // Guarantees reproducible schedules (no Math.random) respecting teacher availability
@@ -19,6 +19,45 @@ export class GeneticScheduler {
 
   constructor(input: ScheduleInput) {
     this.input = input;
+    this.variables = [];
+    this.domains = new Map();
+    this.initializeVariables();
+  }
+
+  private initializeVariables() {
+    this.variables = [];
+    this.input.classes.forEach(cls => {
+      cls.subjects.forEach(sub => {
+        for (let i = 0; i < sub.hours_per_week; i++) {
+          this.variables.push({
+            id: `${cls.id}-${sub.name}-${i}`,
+            classId: cls.id,
+            subject: sub,
+            teacherId: sub.teacher_id,
+            durationIndex: i
+          });
+        }
+      });
+    });
+
+    this.variables.forEach(variable => {
+      const teacher = this.input.teachers.find(t => t.id === variable.teacherId);
+      if (teacher) {
+        const validSlots = teacher.disponibility.filter(d =>
+            this.input.days.includes(d.day) && d.period <= this.input.periods
+        );
+        this.domains.set(variable.id, validSlots);
+      } else {
+        this.domains.set(variable.id, []);
+      }
+    });
+
+    // Heuristic: Sort by domain size (most constrained first = FAIL FAST)
+    this.variables.sort((a, b) => {
+      const lenA = this.domains.get(a.id)?.length || 0;
+      const lenB = this.domains.get(b.id)?.length || 0;
+      return lenA - lenB;
+    });
   }
 
   public generate(): ScheduleSolution[] {
