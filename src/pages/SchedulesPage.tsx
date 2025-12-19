@@ -1,16 +1,23 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { useAuth } from '../context/AuthContext';
-import SubscriptionModal from '../../components/SubscriptionModal';
-import { Teacher, Schedule } from '../../types';
-import TeacherForm from '../../components/TeacherForm';
-import ScheduleDisplay from '../../components/ScheduleDisplay';
-import TeacherCard from '../../components/TeacherCard';
-import TimeSlotManager from '../../components/TimeSlotManager';
-import { generateSchedule, getSchedulePresets, validateViability, PresetHorario, ViabilityError } from '../../services/geminiService';
-import DataImporter from '../../components/DataImporter';
-import { DEFAULT_TIME_SLOTS } from '../../constants';
-import api from '../services/api';
-import ViabilityErrorDisplay from '../../components/ViabilityErrorDisplay';
+import React, { useState, useCallback, useEffect, useRef } from "react";
+import { useAuth } from "../context/AuthContext";
+import SubscriptionModal from "../../components/SubscriptionModal";
+import { Schedule, ScheduleQualityMetrics, Teacher } from "../../types";
+import TeacherForm from "../../components/TeacherForm";
+import ScheduleDisplay from "../../components/ScheduleDisplay";
+import TeacherCard from "../../components/TeacherCard";
+import TimeSlotManager from "../../components/TimeSlotManager";
+import {
+  generateSchedule,
+  getSchedulePresets,
+  validateViability,
+  PresetHorario,
+  ViabilityError,
+} from "../../services/geminiService";
+import DataImporter from "../../components/DataImporter";
+import { DEFAULT_TIME_SLOTS } from "../../constants";
+import api from "../services/api";
+import ViabilityErrorDisplay from "../../components/ViabilityErrorDisplay";
+import QualitySummary from "../../components/QualitySummary";
 
 interface ScheduleError {
   message: string;
@@ -25,21 +32,25 @@ interface ScheduleError {
 const SchedulesPage: React.FC = () => {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [qualityMetrics, setQualityMetrics] = useState<ScheduleQualityMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isValidating, setIsValidating] = useState(false); // Para re-validar ao mudar preset
   const [error, setError] = useState<ScheduleError | null>(null);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [timeSlots, setTimeSlots] = useState<string[]>(DEFAULT_TIME_SLOTS);
-  const [permissionErrorLink, setPermissionErrorLink] = useState<string | null>(null);
+  const [permissionErrorLink, setPermissionErrorLink] = useState<string | null>(
+    null
+  );
   const [isSaving, setIsSaving] = useState(false);
+  const [isConfigCollapsed, setIsConfigCollapsed] = useState(false);
   const [generationCount, setGenerationCount] = useState(0);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [presets, setPresets] = useState<PresetHorario[]>([]);
-  const [selectedPresetId, setSelectedPresetId] = useState<string>('padrao-30');
-  
+  const [selectedPresetId, setSelectedPresetId] = useState<string>("padrao-30");
+
   // Ref para o formulário de professor (para scroll ao editar)
   const teacherFormRef = useRef<HTMLDivElement>(null);
-  
+
   // TODO: Fetch subscription status from API context or user metadata
   const isPremium = true; // Temporary mock for testing
   const STRIPE_LINK = "https://buy.stripe.com/test_6oU6oB94Ab8WcGZ3xL5Ne00";
@@ -52,49 +63,61 @@ const SchedulesPage: React.FC = () => {
         setPresets(data.presets);
         setSelectedPresetId(data.default);
         // Aplicar preset padrão
-        const defaultPreset = data.presets.find(p => p.id === data.default);
+        const defaultPreset = data.presets.find((p) => p.id === data.default);
         if (defaultPreset) {
           setTimeSlots(defaultPreset.slots);
         }
       } catch (err) {
-        console.error('Erro ao carregar presets:', err);
+        console.error("Erro ao carregar presets:", err);
       }
     };
     loadPresets();
   }, []);
 
-  const addTeacher = useCallback((newTeacherData: Omit<Teacher, 'id'>) => {
+  const addTeacher = useCallback((newTeacherData: Omit<Teacher, "id">) => {
     const newTeacher: Teacher = { ...newTeacherData, id: crypto.randomUUID() };
-    setTeachers(prev => [...prev, newTeacher]);
+    setTeachers((prev) => [...prev, newTeacher]);
   }, []);
 
-  const removeTeacher = useCallback((id: string) => {
-    setTeachers(prev => prev.filter(t => t.id !== id));
-    if (editingTeacher?.id === id) {
-      setEditingTeacher(null);
-    }
-  }, [editingTeacher]);
+  const removeTeacher = useCallback(
+    (id: string) => {
+      setTeachers((prev) => prev.filter((t) => t.id !== id));
+      if (editingTeacher?.id === id) {
+        setEditingTeacher(null);
+      }
+    },
+    [editingTeacher]
+  );
 
   const handleImport = useCallback((importedTeachers: Teacher[]) => {
     setTeachers(importedTeachers);
     setSchedule(null);
+    setQualityMetrics(null);
     setError(null);
     setEditingTeacher(null);
   }, []);
 
-  const handleEditTeacher = useCallback((id: string) => {
-    const teacherToEdit = teachers.find(t => t.id === id);
-    if (teacherToEdit) {
-      setEditingTeacher(teacherToEdit);
-      // Scroll suave para o formulário de edição
-      setTimeout(() => {
-        teacherFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 100);
-    }
-  }, [teachers]);
+  const handleEditTeacher = useCallback(
+    (id: string) => {
+      const teacherToEdit = teachers.find((t) => t.id === id);
+      if (teacherToEdit) {
+        setEditingTeacher(teacherToEdit);
+        // Scroll suave para o formulário de edição
+        setTimeout(() => {
+          teacherFormRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+        }, 100);
+      }
+    },
+    [teachers]
+  );
 
   const handleUpdateTeacher = useCallback((updatedTeacher: Teacher) => {
-    setTeachers(prev => prev.map(t => t.id === updatedTeacher.id ? updatedTeacher : t));
+    setTeachers((prev) =>
+      prev.map((t) => (t.id === updatedTeacher.id ? updatedTeacher : t))
+    );
     setEditingTeacher(null);
   }, []);
 
@@ -102,83 +125,111 @@ const SchedulesPage: React.FC = () => {
     setEditingTeacher(null);
   }, []);
 
-  const handlePresetSelect = useCallback(async (preset: PresetHorario) => {
-    console.log('Aplicando preset:', preset.id, 'com', preset.slots?.length, 'slots');
-    
-    // Aplicar os slots do preset selecionado
-    const newSlots = preset.slots && preset.slots.length > 0 ? preset.slots : timeSlots;
-    setTimeSlots(newSlots);
-    setSelectedPresetId(preset.id);
-    
-    // Se o preset veio de uma fonte com todos os presets (erro de viabilidade),
-    // atualizar a lista local de presets para incluir todos
-    if (error?.viabilityData?.allPresets && error.viabilityData.allPresets.length > presets.length) {
-      setPresets(error.viabilityData.allPresets);
-    }
-    
-    // Limpar erro anterior
-    setError(null);
-    
-    // Re-validar automaticamente se houver professores
-    if (teachers.length > 0) {
-      setIsValidating(true);
-      try {
-        const validation = await validateViability(teachers, newSlots);
-        
-        if (!validation.viable) {
-          // Ainda tem problemas, mostrar novo relatório
-          setError({
-            message: `Ainda há ${validation.problems.filter((p: any) => p.tipo === 'CRITICO').length} problema(s) pendente(s).`,
-            isViabilityError: true,
-            viabilityData: {
-              error: `Nova análise: ${validation.problems.filter((p: any) => p.tipo === 'CRITICO').length} problema(s) crítico(s) encontrado(s).`,
-              errorType: 'VIABILITY_ERROR',
-              details: validation.problems.filter((p: any) => p.tipo === 'CRITICO').map((p: any) => p.mensagem),
-              suggestion: validation.suggestions.join(' '),
-              statistics: validation.statistics,
-              recommendedPreset: validation.recommendedPreset,
-              allPresets: presets
-            }
-          });
-        }
-        // Se viável, erro fica null e o usuário pode gerar
-      } catch (err) {
-        console.error('Erro ao re-validar:', err);
-        // Se falhar a validação, não bloqueia o usuário
-      } finally {
-        setIsValidating(false);
+  const handlePresetSelect = useCallback(
+    async (preset: PresetHorario) => {
+      console.log(
+        "Aplicando preset:",
+        preset.id,
+        "com",
+        preset.slots?.length,
+        "slots"
+      );
+
+      // Aplicar os slots do preset selecionado
+      const newSlots =
+        preset.slots && preset.slots.length > 0 ? preset.slots : timeSlots;
+      setTimeSlots(newSlots);
+      setSelectedPresetId(preset.id);
+
+      // Se o preset veio de uma fonte com todos os presets (erro de viabilidade),
+      // atualizar a lista local de presets para incluir todos
+      if (
+        error?.viabilityData?.allPresets &&
+        error.viabilityData.allPresets.length > presets.length
+      ) {
+        setPresets(error.viabilityData.allPresets);
       }
-    }
-  }, [error, presets, teachers, timeSlots]);
+
+      // Limpar erro anterior
+      setError(null);
+
+      // Re-validar automaticamente se houver professores
+      if (teachers.length > 0) {
+        setIsValidating(true);
+        try {
+          const validation = await validateViability(teachers, newSlots);
+
+          if (!validation.viable) {
+            // Ainda tem problemas, mostrar novo relatório
+            setError({
+              message: `Ainda há ${
+                validation.problems.filter((p: any) => p.tipo === "CRITICO")
+                  .length
+              } problema(s) pendente(s).`,
+              isViabilityError: true,
+              viabilityData: {
+                error: `Nova análise: ${
+                  validation.problems.filter((p: any) => p.tipo === "CRITICO")
+                    .length
+                } problema(s) crítico(s) encontrado(s).`,
+                errorType: "VIABILITY_ERROR",
+                details: validation.problems
+                  .filter((p: any) => p.tipo === "CRITICO")
+                  .map((p: any) => p.mensagem),
+                suggestion: validation.suggestions.join(" "),
+                statistics: validation.statistics,
+                recommendedPreset: validation.recommendedPreset,
+                allPresets: presets,
+              },
+            });
+          }
+          // Se viável, erro fica null e o usuário pode gerar
+        } catch (err) {
+          console.error("Erro ao re-validar:", err);
+          // Se falhar a validação, não bloqueia o usuário
+        } finally {
+          setIsValidating(false);
+        }
+      }
+    },
+    [error, presets, teachers, timeSlots]
+  );
 
   // Função para re-validar manualmente (botão de refresh)
   const handleRefreshViability = useCallback(async () => {
     if (teachers.length === 0) return;
-    
+
     setIsValidating(true);
     try {
       const validation = await validateViability(teachers, timeSlots);
-      
+
       if (!validation.viable) {
         setError({
-          message: `Análise atualizada: ${validation.problems.filter((p: any) => p.tipo === 'CRITICO').length} problema(s) crítico(s).`,
+          message: `Análise atualizada: ${
+            validation.problems.filter((p: any) => p.tipo === "CRITICO").length
+          } problema(s) crítico(s).`,
           isViabilityError: true,
           viabilityData: {
-            error: `Análise atualizada: ${validation.problems.filter((p: any) => p.tipo === 'CRITICO').length} problema(s) crítico(s) encontrado(s).`,
-            errorType: 'VIABILITY_ERROR',
-            details: validation.problems.filter((p: any) => p.tipo === 'CRITICO').map((p: any) => p.mensagem),
-            suggestion: validation.suggestions.join(' '),
+            error: `Análise atualizada: ${
+              validation.problems.filter((p: any) => p.tipo === "CRITICO")
+                .length
+            } problema(s) crítico(s) encontrado(s).`,
+            errorType: "VIABILITY_ERROR",
+            details: validation.problems
+              .filter((p: any) => p.tipo === "CRITICO")
+              .map((p: any) => p.mensagem),
+            suggestion: validation.suggestions.join(" "),
             statistics: validation.statistics,
             recommendedPreset: validation.recommendedPreset,
-            allPresets: presets
-          }
+            allPresets: presets,
+          },
         });
       } else {
         // Dados agora são viáveis! Limpar erro
         setError(null);
       }
     } catch (err) {
-      console.error('Erro ao validar:', err);
+      console.error("Erro ao validar:", err);
     } finally {
       setIsValidating(false);
     }
@@ -191,24 +242,29 @@ const SchedulesPage: React.FC = () => {
     }
 
     if (teachers.length === 0) {
-      setError({ message: "Adicione pelo menos um professor antes de gerar o quadro." });
+      setError({
+        message: "Adicione pelo menos um professor antes de gerar o quadro.",
+      });
       return;
     }
     setIsLoading(true);
     setError(null);
+    setQualityMetrics(null);
     setPermissionErrorLink(null);
 
     try {
       const result = await generateSchedule(teachers, timeSlots);
-      setSchedule(result);
-      setGenerationCount(prev => prev + 1);
+      setSchedule(result.schedule);
+      setQualityMetrics(result.qualityMetrics ?? null);
+      setIsConfigCollapsed(true); // Auto-colapsar painel após geração
+      setGenerationCount((prev) => prev + 1);
     } catch (err: any) {
       // Verificar se é erro de viabilidade
       if (err.viabilityData) {
         setError({
           message: err.viabilityData.error,
           isViabilityError: true,
-          viabilityData: err.viabilityData
+          viabilityData: err.viabilityData,
         });
         setIsLoading(false);
         return;
@@ -227,14 +283,19 @@ const SchedulesPage: React.FC = () => {
         }
 
         if (errorMessage.includes("API_PERMISSION_DENIED")) {
-          setError({ message: "Sua chave de API é válida, mas a API Gemini não está ativada." });
-          setPermissionErrorLink("https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com");
+          setError({
+            message:
+              "Sua chave de API é válida, mas a API Gemini não está ativada.",
+          });
+          setPermissionErrorLink(
+            "https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com"
+          );
           setIsLoading(false);
           return;
         }
 
-        const newError: ScheduleError = { message: '' };
-        
+        const newError: ScheduleError = { message: "" };
+
         // Error parsing logic preserved from original
         const teacherRegex = /professor '(.*?)'|aulas de (.*?)\s\(/g;
         const conflictingTeachers = new Set<string>();
@@ -250,20 +311,26 @@ const SchedulesPage: React.FC = () => {
           conflictingGrades.add(gradeMatch[1] || gradeMatch[2]);
         }
 
-        const dayRegex = /\((Segunda-feira|Terça-feira|Quarta-feira|Quinta-feira|Sexta-feira)/g;
+        const dayRegex =
+          /\((Segunda-feira|Terça-feira|Quarta-feira|Quinta-feira|Sexta-feira)/g;
         const conflictingDays = new Set<string>();
         let dayMatch;
         while ((dayMatch = dayRegex.exec(errorMessage)) !== null) {
           conflictingDays.add(dayMatch[1]);
         }
 
-        if (conflictingTeachers.size > 0) newError.conflictingTeachers = Array.from(conflictingTeachers);
-        if (conflictingGrades.size > 0) newError.conflictingGrades = Array.from(conflictingGrades);
-        if (conflictingDays.size > 0) newError.conflictingDays = Array.from(conflictingDays);
+        if (conflictingTeachers.size > 0)
+          newError.conflictingTeachers = Array.from(conflictingTeachers);
+        if (conflictingGrades.size > 0)
+          newError.conflictingGrades = Array.from(conflictingGrades);
+        if (conflictingDays.size > 0)
+          newError.conflictingDays = Array.from(conflictingDays);
 
-        let suggestion = '';
+        let suggestion = "";
         if (errorMessage.includes("excede o número total de horários")) {
-          const classSlotsCount = timeSlots.filter(slot => slot.toLowerCase().includes('aula')).length;
+          const classSlotsCount = timeSlots.filter((slot) =>
+            slot.toLowerCase().includes("aula")
+          ).length;
           const totalAvailableSlots = 5 * classSlotsCount;
           suggestion = `\n\n**Sugestões:**\n• Verifique se a soma total de aulas não ultrapassa ${totalAvailableSlots}.\n• Aumente os dias de disponibilidade.`;
         } else if (newError.conflictingTeachers?.length > 0) {
@@ -273,12 +340,11 @@ const SchedulesPage: React.FC = () => {
         }
 
         const cleanMessage = errorMessage
-          .replace('A IA detectou um conflito de agendamento: ', '')
-          .replace('Conflito de agendamento: ', '');
+          .replace("A IA detectou um conflito de agendamento: ", "")
+          .replace("Conflito de agendamento: ", "");
 
         newError.message = cleanMessage + suggestion;
         setError(newError);
-
       } else {
         setError({ message: "Ocorreu um erro desconhecido." });
       }
@@ -290,13 +356,16 @@ const SchedulesPage: React.FC = () => {
   const handleSaveSchedule = async (scheduleToSave: Schedule) => {
     setIsSaving(true);
     try {
-      const scheduleName = prompt('Digite um nome para esta grade:', `Grade ${new Date().toLocaleDateString('pt-BR')}`);
+      const scheduleName = prompt(
+        "Digite um nome para esta grade:",
+        `Grade ${new Date().toLocaleDateString("pt-BR")}`
+      );
       if (!scheduleName) {
         setIsSaving(false);
         return;
       }
 
-      await api.post('/schedules', {
+      await api.post("/schedules", {
         name: scheduleName,
         data: scheduleToSave,
         metadata: {
@@ -304,70 +373,93 @@ const SchedulesPage: React.FC = () => {
           generationAttempts: generationCount,
           teachersCount: teachers.length,
           timeSlotsCount: timeSlots.length,
-        }
+        },
       });
 
-      alert('Grade salva com sucesso! Você pode visualizá-la no Dashboard.');
-    } catch (err) {
-      console.error('Error saving schedule:', err);
-      alert('Erro ao salvar a grade. Tente novamente.');
+      alert("Grade salva com sucesso! Você pode visualizá-la no Dashboard.");
+    } catch (err: any) {
+      console.error("Error saving schedule:", err);
+      alert("Erro ao salvar a grade. Tente novamente.");
     } finally {
       setIsSaving(false);
     }
   };
 
   // Calcular estatísticas para exibição
-  const currentPreset = presets.find(p => p.id === selectedPresetId);
-  const totalAulas = teachers.reduce((sum, t) => 
-    sum + t.classAssignments.reduce((s, a) => s + a.classCount, 0), 0);
-  const turmasUnicas = new Set(teachers.flatMap(t => t.classAssignments.map(a => a.grade)));
+  const currentPreset = presets.find((p) => p.id === selectedPresetId);
+  const totalAulas = teachers.reduce(
+    (sum, t) => sum + t.classAssignments.reduce((s, a) => s + a.classCount, 0),
+    0
+  );
+  const turmasUnicas = new Set(
+    teachers.flatMap((t) => t.classAssignments.map((a) => a.grade))
+  );
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className={`${isConfigCollapsed ? 'max-w-full' : 'max-w-7xl'} mx-auto transition-all duration-300`}>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+        {!isConfigCollapsed && (
         <div className="lg:col-span-1 space-y-6">
           <DataImporter onImport={handleImport} />
-          
+
           {/* Seletor de Preset */}
           {presets.length > 0 && (
             <div className="bg-white p-4 rounded-2xl shadow-lg">
               <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <svg className="w-5 h-5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                <svg
+                  className="w-5 h-5 text-purple-600"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                    clipRule="evenodd"
+                  />
                 </svg>
                 Configuração de Horários
               </h3>
               <select
                 value={selectedPresetId}
                 onChange={(e) => {
-                  const preset = presets.find(p => p.id === e.target.value);
+                  const preset = presets.find((p) => p.id === e.target.value);
                   if (preset) handlePresetSelect(preset);
                 }}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               >
-                {presets.map(preset => (
+                {presets.map((preset) => (
                   <option key={preset.id} value={preset.id}>
                     {preset.nome}
                   </option>
                 ))}
               </select>
               {currentPreset && (
-                <p className="text-sm text-gray-500 mt-2">{currentPreset.descricao}</p>
+                <p className="text-sm text-gray-500 mt-2">
+                  {currentPreset.descricao}
+                </p>
               )}
-              
+
               {/* Mini estatísticas */}
               {teachers.length > 0 && (
                 <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Total de aulas:</span>
-                    <span className={`font-bold ${totalAulas > (currentPreset?.aulasSemanais || 30) * turmasUnicas.size ? 'text-red-600' : 'text-green-600'}`}>
+                    <span
+                      className={`font-bold ${
+                        totalAulas >
+                        (currentPreset?.aulasSemanais || 30) * turmasUnicas.size
+                          ? "text-red-600"
+                          : "text-green-600"
+                      }`}
+                    >
                       {totalAulas}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm mt-1">
                     <span className="text-gray-600">Slots disponíveis:</span>
                     <span className="font-bold text-gray-800">
-                      {currentPreset?.aulasSemanais || 30} × {turmasUnicas.size} turmas
+                      {currentPreset?.aulasSemanais || 30} × {turmasUnicas.size}{" "}
+                      turmas
                     </span>
                   </div>
                 </div>
@@ -375,7 +467,10 @@ const SchedulesPage: React.FC = () => {
             </div>
           )}
 
-          <TimeSlotManager timeSlots={timeSlots} onTimeSlotsChange={setTimeSlots} />
+          <TimeSlotManager
+            timeSlots={timeSlots}
+            onTimeSlotsChange={setTimeSlots}
+          />
           <div ref={teacherFormRef}>
             <TeacherForm
               onAddTeacher={addTeacher}
@@ -386,27 +481,57 @@ const SchedulesPage: React.FC = () => {
           </div>
           {teachers.length > 0 && (
             <div className="space-y-4">
-              <h3 className="text-xl font-bold text-gray-800">Professores Adicionados</h3>
-              {teachers.map(teacher => (
+              <h3 className="text-xl font-bold text-gray-800">
+                Professores Adicionados
+              </h3>
+              {teachers.map((teacher) => (
                 <TeacherCard
                   key={teacher.id}
                   teacher={teacher}
                   onRemove={removeTeacher}
                   onEdit={handleEditTeacher}
-                  isConflicting={error?.conflictingTeachers?.includes(teacher.name)}
-                  conflictingDays={error?.conflictingTeachers?.includes(teacher.name) ? error.conflictingDays : undefined}
+                  isConflicting={error?.conflictingTeachers?.includes(
+                    teacher.name
+                  )}
+                  conflictingDays={
+                    error?.conflictingTeachers?.includes(teacher.name)
+                      ? error.conflictingDays
+                      : undefined
+                  }
                 />
               ))}
             </div>
           )}
         </div>
+        )}
 
-        <div className="lg:col-span-2 space-y-6">
+        <div className={`${isConfigCollapsed ? 'lg:col-span-3' : 'lg:col-span-2'} space-y-6 transition-all duration-300`}>
           <div className="bg-white p-6 rounded-2xl shadow-lg">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-bold text-gray-800">Seu Quadro de Horários</h2>
-                <p className="text-gray-500 mt-1">Pronto para organizar a semana? Adicione os professores e clique em gerar.</p>
+              <div className="flex items-center gap-4">
+                {/* Botão para reabrir painel de configurações */}
+                {isConfigCollapsed && (
+                  <button
+                    onClick={() => setIsConfigCollapsed(false)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
+                    title="Voltar às Configurações"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 17l-5-5m0 0l5-5m-5 5h12" />
+                    </svg>
+                    Editar Configurações
+                  </button>
+                )}
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800">
+                    Seu Quadro de Horários
+                  </h2>
+                  <p className="text-gray-500 mt-1">
+                    {isConfigCollapsed 
+                      ? 'Grade gerada com sucesso! Exporte ou edite as configurações.'
+                      : 'Pronto para organizar a semana? Adicione os professores e clique em gerar.'}
+                  </p>
+                </div>
               </div>
 
               <div className="w-full sm:w-auto">
@@ -417,15 +542,38 @@ const SchedulesPage: React.FC = () => {
                 >
                   {isLoading ? (
                     <>
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      <svg
+                        className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
                       </svg>
                       Gerando...
                     </>
                   ) : (
                     <>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" /></svg>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-5 w-5"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
+                      </svg>
                       Gerar Quadro
                     </>
                   )}
@@ -438,7 +586,9 @@ const SchedulesPage: React.FC = () => {
           {isValidating && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center gap-3">
               <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-blue-700">Verificando se ainda há problemas com a nova configuração...</p>
+              <p className="text-blue-700">
+                Verificando se ainda há problemas com a nova configuração...
+              </p>
             </div>
           )}
 
@@ -459,20 +609,41 @@ const SchedulesPage: React.FC = () => {
 
           {/* Erro Normal (não viabilidade) */}
           {error && !error.isViabilityError && (
-            <div className={`border-l-4 p-4 rounded-lg ${error.isConfigError ? 'bg-yellow-100 border-yellow-500 text-yellow-800' : 'bg-red-100 border-red-500 text-red-800'}`} role="alert">
-              <p className="font-bold">{error.isConfigError ? 'Erro de Configuração' : 'Erro ao Gerar Quadro'}</p>
+            <div
+              className={`border-l-4 p-4 rounded-lg ${
+                error.isConfigError
+                  ? "bg-yellow-100 border-yellow-500 text-yellow-800"
+                  : "bg-red-100 border-red-500 text-red-800"
+              }`}
+              role="alert"
+            >
+              <p className="font-bold">
+                {error.isConfigError
+                  ? "Erro de Configuração"
+                  : "Erro ao Gerar Quadro"}
+              </p>
               <p className="whitespace-pre-wrap">{error.message}</p>
               {permissionErrorLink && (
                 <div className="mt-4">
-                  <a href={permissionErrorLink} target="_blank" rel="noopener noreferrer" className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition inline-block">
+                  <a
+                    href={permissionErrorLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition inline-block"
+                  >
                     Ativar API Gemini
                   </a>
                   <p className="text-xs text-red-700 mt-2">
-                    É necessário ativar a API no seu projeto do Google Cloud para prosseguir.
+                    É necessário ativar a API no seu projeto do Google Cloud
+                    para prosseguir.
                   </p>
                 </div>
               )}
             </div>
+          )}
+
+          {schedule && qualityMetrics && (
+            <QualitySummary metrics={qualityMetrics} />
           )}
 
           <ScheduleDisplay

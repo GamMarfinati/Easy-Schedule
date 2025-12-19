@@ -17,6 +17,7 @@ import {
     convertToGeneticInput
 } from '../services/scheduler/adapter.js';
 import { GeneticScheduler } from '../services/scheduler/algorithm.js';
+import { computeScheduleQuality } from '../services/scheduler/metrics.js';
 
 const DAYS_OF_WEEK = [
     "Segunda-feira",
@@ -152,6 +153,7 @@ export const generateScheduleAI = async (req: Request, res: Response) => {
 
         const bestSolution = solutions[0];
         const flatSchedule = convertFromGeneticOutput(bestSolution, gaInput, teachers, timeSlots);
+        const qualityMetrics = computeScheduleQuality(flatSchedule, teachers, timeSlots);
 
         // ============================================================
         // VALIDAÇÃO ALGORÍTMICA (FISCAL)
@@ -181,6 +183,7 @@ export const generateScheduleAI = async (req: Request, res: Response) => {
 
         return res.status(200).json({
             schedule,
+            qualityMetrics,
             metadata: {
                 method: 'deterministic',
                 totalLessons: validationResult.estatisticas?.totalAulasGeradas,
