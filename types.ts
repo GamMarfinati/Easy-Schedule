@@ -25,3 +25,11 @@ export type Schedule = {
     [timeSlot: string]: ScheduleSlot[];
   };
 };
+
+export interface ScheduleQualityMetrics {
+  totalGaps: number;
+  singleLessonDays: number;
+  availabilityViolations: number;
+  adherencePercent: number;
+  totalLessons: number;
+}

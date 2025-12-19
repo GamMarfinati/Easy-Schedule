@@ -1,5 +1,5 @@
 import api from '../src/services/api';
-import { Teacher, Schedule } from "../types";
+import { Teacher, Schedule, ScheduleQualityMetrics } from "../types";
 
 // Tipos para os presets de horário
 export interface PresetHorario {
@@ -31,8 +31,9 @@ export interface ViabilityError {
 // Tipo para resultado de geração com metadados
 export interface GenerationResult {
   schedule: Schedule;
+  qualityMetrics?: ScheduleQualityMetrics;
   metadata?: {
-    method: 'ai' | 'genetic';
+    method: 'ai' | 'genetic' | 'deterministic';
     attempts: number;
     totalLessons?: number;
     generatedAt: string;
@@ -175,10 +176,10 @@ export const validateViability = async (
 export const generateSchedule = async (
   teachers: Teacher[], 
   timeSlots: string[]
-): Promise<Schedule> => {
+): Promise<GenerationResult> => {
   try {
     const response = await api.post('/schedules/generate', { teachers, timeSlots });
-    return response.data.schedule;
+    return response.data;
   } catch (error: any) {
     console.error("Erro ao comunicar com o serviço de geração de grade:", error);
 

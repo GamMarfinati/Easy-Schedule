@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import SubscriptionModal from '../../components/SubscriptionModal';
-import { Teacher, Schedule } from '../../types';
+import { Teacher, Schedule, ScheduleQualityMetrics } from '../../types';
 import TeacherForm from '../../components/TeacherForm';
 import ScheduleDisplay from '../../components/ScheduleDisplay';
 import TeacherCard from '../../components/TeacherCard';
@@ -11,6 +11,7 @@ import DataImporter from '../../components/DataImporter';
 import { DEFAULT_TIME_SLOTS } from '../../constants';
 import api from '../services/api';
 import ViabilityErrorDisplay from '../../components/ViabilityErrorDisplay';
+import QualitySummary from '../../components/QualitySummary';
 
 interface ScheduleError {
   message: string;
@@ -25,6 +26,7 @@ interface ScheduleError {
 const SchedulesPage: React.FC = () => {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [qualityMetrics, setQualityMetrics] = useState<ScheduleQualityMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isValidating, setIsValidating] = useState(false); // Para re-validar ao mudar preset
   const [error, setError] = useState<ScheduleError | null>(null);
@@ -78,6 +80,7 @@ const SchedulesPage: React.FC = () => {
   const handleImport = useCallback((importedTeachers: Teacher[]) => {
     setTeachers(importedTeachers);
     setSchedule(null);
+    setQualityMetrics(null);
     setError(null);
     setEditingTeacher(null);
   }, []);
@@ -196,11 +199,13 @@ const SchedulesPage: React.FC = () => {
     }
     setIsLoading(true);
     setError(null);
+    setQualityMetrics(null);
     setPermissionErrorLink(null);
 
     try {
       const result = await generateSchedule(teachers, timeSlots);
-      setSchedule(result);
+      setSchedule(result.schedule);
+      setQualityMetrics(result.qualityMetrics ?? null);
       setGenerationCount(prev => prev + 1);
     } catch (err: any) {
       // Verificar se é erro de viabilidade
@@ -473,6 +478,10 @@ const SchedulesPage: React.FC = () => {
                 </div>
               )}
             </div>
+          )}
+
+          {schedule && qualityMetrics && (
+            <QualitySummary metrics={qualityMetrics} />
           )}
 
           <ScheduleDisplay
