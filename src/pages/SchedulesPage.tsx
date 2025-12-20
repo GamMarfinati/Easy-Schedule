@@ -531,6 +531,7 @@ const SchedulesPage: React.FC = () => {
 
               <div className="w-full sm:w-auto">
                 <button
+                  id="btn-generate-schedule"
                   onClick={handleGenerateSchedule}
                   disabled={isLoading || teachers.length === 0}
                   className="w-full flex items-center justify-center gap-2 bg-primary text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed disabled:scale-100"

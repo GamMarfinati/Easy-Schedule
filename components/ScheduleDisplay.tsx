@@ -74,17 +74,81 @@ const LoadingState: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center p-4">
-      {/* Spinner animado */}
-      <div className="relative">
-        <div className="w-20 h-20 border-4 border-purple-200 rounded-full"></div>
-        <div className="absolute top-0 left-0 w-20 h-20 border-4 border-transparent border-t-primary rounded-full animate-spin"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-          <span className="text-2xl">🤖</span>
-        </div>
+      {/* Styles for the new loader */}
+      <style>{`
+        :root {
+          /* Cores extraídas da imagem do logo */
+          --hp-purple-bg: #311b62;
+          --hp-lilac: #b39ddb;
+          
+          /* Configurações do Loader */
+          --loader-size: 64px;
+          --gap-size: 8px;
+          --corner-radius: 6px;
+          --border-thickness: 4px;
+          --cycle-duration: 2.4s;
+        }
+
+        .hp-loader-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          grid-template-rows: 1fr 1fr;
+          gap: var(--gap-size);
+          width: var(--loader-size);
+          height: var(--loader-size);
+        }
+
+        .hp-square {
+          width: 100%;
+          height: 100%;
+          border-radius: var(--corner-radius);
+          border: var(--border-thickness) solid transparent;
+          background-color: var(--hp-lilac);
+          box-sizing: border-box; 
+          animation: clockwisePulse var(--cycle-duration) infinite ease-in-out;
+        }
+
+        .sq-tr { animation-delay: 0s; }
+        .sq-br { animation-delay: calc(var(--cycle-duration) * 0.25); }
+        .sq-bl { animation-delay: calc(var(--cycle-duration) * 0.5); }
+        .sq-tl { animation-delay: calc(var(--cycle-duration) * 0.75); }
+
+        @keyframes clockwisePulse {
+          0% {
+            background-color: transparent;
+            border-color: var(--hp-lilac);
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(179, 157, 219, 0.7);
+          }
+          12.5% {
+            transform: scale(1.15);
+            box-shadow: 0 0 10px 2px rgba(179, 157, 219, 0.4);
+          }
+          25% {
+            background-color: transparent;
+            border-color: var(--hp-lilac);
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(179, 157, 219, 0);
+          }
+          25.01%, 100% {
+            background-color: var(--hp-lilac);
+            border-color: transparent;
+            transform: scale(1);
+            box-shadow: none;
+          }
+        }
+      `}</style>
+      
+      {/* Novo Loader Animado */}
+      <div className="hp-loader-grid mb-6">
+        <div className="hp-square sq-tl"></div>
+        <div className="hp-square sq-tr"></div>
+        <div className="hp-square sq-bl"></div>
+        <div className="hp-square sq-br"></div>
       </div>
 
       {/* Mensagem principal */}
-      <h3 className="mt-6 text-xl font-semibold text-gray-700 transition-all duration-500">
+      <h3 className="mt-2 text-xl font-semibold text-gray-700 transition-all duration-500">
         {currentMessage.title}
       </h3>
       <p className="mt-2 text-gray-500 max-w-sm transition-all duration-500">
@@ -171,6 +235,279 @@ const CellContent: React.FC<{
   );
 };
 
+// --- TIPOS DE RELATÓRIO ---
+interface QualityMetrics {
+  totalLessons: number;
+  warnings: string[];   // "Apenas 1 aula no dia..."
+  hints: string[];      // "Fragmentação..."
+  suggestions: string[]; // "Troca de disponibilidade..." [NOVO]
+  conflicts: string[];  // "Choque de horário..."
+}
+
+// Helper para calcular métricas (retorna objeto ao invés de string)
+const calculateQualityMetrics = (schedule: Schedule, teachers: Teacher[]): QualityMetrics => {
+  let totalLessons = 0;
+  const warnings: string[] = [];
+  const hints: string[] = [];
+  const suggestions: string[] = [];
+  const conflicts: string[] = [];
+  
+  if (!schedule) return { totalLessons: 0, warnings: [], hints: [], suggestions: [], conflicts: [] };
+
+  // 1. Coleta e Totais
+  const teacherStats = new Map<string, Map<string, number>>(); 
+  const teacherTotalLessons = new Map<string, number>();
+  const classOccupancy = new Map<string, Map<string, Map<string, boolean>>>(); // Grade -> Day -> Time -> isOccupied
+
+  // Inicializar ocupação das turmas
+  Object.keys(schedule).forEach(day => {
+    Object.keys(schedule[day]).forEach(time => {
+      const lessons = schedule[day][time];
+      if (Array.isArray(lessons)) {
+        lessons.forEach(l => {
+          if (!classOccupancy.has(l.grade)) classOccupancy.set(l.grade, new Map());
+          const gradeMap = classOccupancy.get(l.grade)!;
+          if (!gradeMap.has(day)) gradeMap.set(day, new Map());
+          gradeMap.get(day)!.set(time, true);
+        });
+      }
+    });
+  });
+
+  Object.entries(schedule).forEach(([day, slots]) => {
+    Object.entries(slots).forEach(([time, lessons]) => {
+      if (Array.isArray(lessons)) {
+        totalLessons += lessons.length;
+        lessons.forEach(l => {
+          // Stats por professor
+          if (!teacherStats.has(l.teacherName)) {
+            teacherStats.set(l.teacherName, new Map());
+          }
+          const dayMap = teacherStats.get(l.teacherName)!;
+          dayMap.set(day, (dayMap.get(day) || 0) + 1);
+
+          // Total por professor
+          teacherTotalLessons.set(l.teacherName, (teacherTotalLessons.get(l.teacherName) || 0) + 1);
+        });
+        
+        // Check Conflitos (Choques)
+        const grades = lessons.map(l => l.grade);
+        const uniqueGrades = new Set(grades);
+        if (grades.length !== uniqueGrades.size) {
+           conflicts.push(`Choque em ${day} - ${time}: Turma com múltiplas aulas.`);
+        }
+      }
+    });
+  });
+
+  // 2. Análise
+  teacherStats.forEach((dayMap, teacherName) => {
+    const teacherObj = teachers.find(t => t.name === teacherName);
+    const assignedDays = Array.from(dayMap.keys());
+    const singleClassDays = assignedDays.filter(d => dayMap.get(d) === 1);
+    
+    // Warning: Dia única aula
+    if (singleClassDays.length > 0) {
+      warnings.push(`${teacherName}: Apenas 1 aula em: ${singleClassDays.join(", ")}.`);
+    }
+
+    // Hint: Fragmentação
+    const totalTeacher = teacherTotalLessons.get(teacherName) || 0;
+    const isFragmented = assignedDays.length > 1 && assignedDays.every(d => (dayMap.get(d) || 0) <= 3) && totalTeacher <= 6;
+    if (isFragmented) {
+      const distribution = assignedDays.map(d => `${d} (${dayMap.get(d)})`).join(", ");
+      hints.push(`${teacherName}: Grade fragmentada [${distribution}]. Ideal: concentrar.`);
+    }
+
+    // --- SMART SUGGESTIONS (Troca de Disponibilidade) ---
+    // Cenário: Professor vai na escola só para 1 aula (singleClassDays).
+    // Objetivo: Achar outro dia que ele NÃO disponibilizou, mas que tem vaga para a turma dessa aula.
+    if (teacherObj && singleClassDays.length > 0) {
+      singleClassDays.forEach(badDay => {
+        // Achar qual aula é essa
+        // Precisamos varrer o schedule de novo ou ter guardado. Vamos varrer simplificado.
+        let troublesomeLesson: { grade: string, subject: string, time: string } | null = null;
+        
+        // Encontrar a aula solitária
+        Object.entries(schedule[badDay] || {}).forEach(([time, lessons]) => {
+           const found = lessons?.find(l => l.teacherName === teacherName);
+           if (found) troublesomeLesson = { grade: found.grade, subject: found.subject, time };
+        });
+
+        if (troublesomeLesson) {
+          // Procurar dias que o professor NÃO deu disponibilidade
+          const allDays = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira"];
+          const availableDays = teacherObj.availabilityDays || [];
+          const unavailableDays = allDays.filter(d => !availableDays.includes(d));
+
+          // Nesses dias indisponíveis, a turma tem vaga?
+          unavailableDays.forEach(goodDay => {
+             // Verificar se a turma tem vaga em algum horário nesse 'goodDay'
+             // Simplificação: Se a turma tem pelo menos 1 slot livre nesse dia.
+             // Idealmente checaríamos se há CONFLITO de professor, mas como ele tá indisponível, assumimos que ele poderia estar livre se quisesse.
+             
+             // Check vacancy for the class
+             const classDayMap = classOccupancy.get(troublesomeLesson!.grade)?.get(goodDay);
+             // Se classe tem horário livre (considerando 5 aulas padrão)
+             const occupiedSlots = classDayMap ? classDayMap.size : 0;
+             
+             if (occupiedSlots < 5) { // Assumindo 5 aulas/dia
+                suggestions.push(`💡 Sugestão para ${teacherName}: Se trocar a disponibilidade de ${badDay} por ${goodDay}, a aula solitária de ${troublesomeLesson!.grade} poderia ser movida, concentrando a grade.`);
+             }
+          });
+        }
+      });
+    }
+  });
+
+  return { totalLessons, warnings, hints, suggestions, conflicts };
+};
+
+
+// --- COMPONENTE MODAL DE RELATÓRIO ---
+const QualityReportModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  metrics: QualityMetrics;
+}> = ({ isOpen, onClose, metrics }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all scale-100 max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4 flex justify-between items-center flex-shrink-0">
+          <h3 className="text-white font-bold text-lg flex items-center gap-2">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Relatório de Qualidade
+          </h3>
+          <button onClick={onClose} className="text-white text-opacity-80 hover:text-white transition-colors">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 overflow-y-auto custom-scrollbar">
+          
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-center">
+              <div className="text-sm text-indigo-500 font-medium uppercase tracking-wide">Total Aulas</div>
+              <div className="text-3xl font-bold text-indigo-700">{metrics.totalLessons}</div>
+            </div>
+            <div className={`p-4 rounded-xl border text-center ${metrics.conflicts.length > 0 ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'}`}>
+              <div className={`text-sm font-medium uppercase tracking-wide ${metrics.conflicts.length > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                Conflitos
+              </div>
+              <div className={`text-3xl font-bold ${metrics.conflicts.length > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                {metrics.conflicts.length}
+              </div>
+            </div>
+          </div>
+
+          {/* Sections */}
+          <div className="space-y-4">
+            
+            {/* Conflicts */}
+            {metrics.conflicts.length > 0 && (
+              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
+                <h4 className="font-bold text-red-800 mb-2 flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
+                  Choques Críticos
+                </h4>
+                <ul className="list-disc list-inside text-sm text-red-700 space-y-1">
+                  {metrics.conflicts.map((c, i) => <li key={i}>{c}</li>)}
+                </ul>
+              </div>
+            )}
+
+            {/* Suggestions (AI Logic) */}
+            {metrics.suggestions.length > 0 && (
+              <div className="bg-purple-50 border-l-4 border-purple-500 p-4 rounded-r-lg shadow-sm">
+                <h4 className="font-bold text-purple-800 mb-2 flex items-center gap-2">
+                  <span className="text-xl">🧞</span>
+                  Sugestões Inteligentes de Troca
+                </h4>
+                <p className="text-xs text-purple-600 mb-2">
+                  O algoritmo detectou oportunidades de melhoria se alguns professores alterarem a disponibilidade:
+                </p>
+                <ul className="text-sm text-purple-800 space-y-2">
+                  {metrics.suggestions.map((s, i) => (
+                    <li key={i} className="flex items-start gap-2 bg-white p-2 rounded border border-purple-100">
+                      <span className="mt-0.5 text-purple-500">✨</span>
+                      <span>{s}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Warnings (Aulas Solitárias) */}
+            {metrics.warnings.length > 0 && (
+              <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg">
+                <h4 className="font-bold text-amber-800 mb-2 flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                  Atenção Necessária
+                </h4>
+                <ul className="text-sm text-amber-800 space-y-2">
+                  {metrics.warnings.map((w, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="mt-1">•</span>
+                      <span>{w}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Hints (Otimização) */}
+            {metrics.hints.length > 0 && (
+              <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg">
+                <h4 className="font-bold text-blue-800 mb-2 flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg>
+                  Otimizações Gerais
+                </h4>
+                <ul className="text-sm text-blue-800 space-y-2">
+                  {metrics.hints.map((h, i) => (
+                   <li key={i} className="flex items-start gap-2">
+                      <span className="text-blue-400">ℹ️</span>
+                      <span>{h}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {metrics.warnings.length === 0 && metrics.hints.length === 0 && metrics.conflicts.length === 0 && metrics.suggestions.length === 0 && (
+              <div className="text-center py-8">
+                <div className="text-5xl mb-2">✨</div>
+                <h4 className="text-lg font-bold text-gray-700">Tudo parece perfeito!</h4>
+                <p className="text-gray-500 text-sm">Nenhum problema detectado na grade atual.</p>
+              </div>
+            )}
+
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="bg-gray-50 px-6 py-4 flex justify-end flex-shrink-0">
+          <button 
+            onClick={onClose}
+            className="px-5 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors shadow-sm"
+          >
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
 const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({
   schedule,
   isLoading,
@@ -196,6 +533,7 @@ const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({
 
   const [selectedGrade, setSelectedGrade] = useState<string>("");
   const [selectedTeacherName, setSelectedTeacherName] = useState<string>("");
+  const [showReport, setShowReport] = useState(false); // Modal state
 
   useEffect(() => {
     localStorage.setItem("scheduleDisplayMode", displayMode);
@@ -213,6 +551,12 @@ const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({
     if (!teachers) return [];
     return teachers.map((t) => t.name).sort();
   }, [teachers]);
+
+  // Calculando métricas para o modal
+  const reportMetrics = useMemo(() => {
+    if (!schedule) return { totalLessons: 0, warnings: [], hints: [], conflicts: [] };
+    return calculateQualityMetrics(schedule, teachers);
+  }, [schedule, teachers]);
 
   useEffect(() => {
     if (allGrades.length > 0 && !selectedGrade) {
@@ -642,7 +986,7 @@ const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({
   };
 
   return (
-    <div className="overflow-x-auto bg-white p-4 sm:p-6 rounded-2xl shadow-lg">
+    <div id="schedule-display-area" className="overflow-x-auto bg-white p-4 sm:p-6 rounded-2xl shadow-lg">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <div>
           <h3 className="text-2xl font-bold text-gray-800 text-center sm:text-left">
@@ -756,7 +1100,26 @@ const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({
             </svg>
             Excel
           </button>
+          
+          {/* Botão de Relatório */}
+          <button
+            onClick={() => setShowReport(true)}
+            className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+            title="Ver Relatório de Qualidade"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Relatório de Qualidade
+          </button>
         </div>
+
+        {/* Modal de Relatório */}
+        <QualityReportModal 
+          isOpen={showReport} 
+          onClose={() => setShowReport(false)} 
+          metrics={reportMetrics} 
+        />
 
         <div className="self-start sm:self-center">
           {displayMode === "turma" && allGrades.length > 0 && (

@@ -82,20 +82,50 @@ export class GeneticScheduler {
     const classBusy = new Set<string>();
 
     let nodesExplored = 0;
+    
+    // Rastrear melhor solução parcial
+    let bestPartialSchedule: Lesson[] = [];
+    let maxPlaced = 0;
+
+    const trackBest = (currentSchedule: Lesson[]) => {
+      if (currentSchedule.length > maxPlaced) {
+        maxPlaced = currentSchedule.length;
+        bestPartialSchedule = [...currentSchedule]; // clone
+      }
+    };
+
     const success = this.backtrack(0, requests, schedule, teacherBusy, classBusy, availabilityMap, () => {
       nodesExplored++;
+      trackBest(schedule); // Verifica se é a melhor a cada passo (ou poderia ser menos frequente)
       return nodesExplored <= this.maxNodes;
     });
 
-    if (!success) {
-      return [];
-    }
+    if (success) {
+      console.log(`[GeneticScheduler] Sucesso total! ${schedule.length} aulas alocadas.`);
+      const score = this.calculateFitness(schedule);
+      return [{ schedule, score, conflicts: [] }];
+    } else {
+      console.warn(`[GeneticScheduler] Falha em completar (Nodes: ${nodesExplored}). Retornando melhor parcial (${bestPartialSchedule.length}/${requests.length} aulas).`);
+      
+      // Identificar conflitos/aulas faltantes
+      // As aulas que FALTAM são tecnicamente "conflitos de alocação"
+      const missingRequests = requests.length - bestPartialSchedule.length;
+      const conflicts: any[] = [];
+      
+      if (missingRequests > 0) {
+          // Adiciona conflitos genéricos para o usuário saber que faltou alocar
+          conflicts.push({ type: 'unallocated', message: `Não foi possível alocar ${missingRequests} aulas automaticamente.` });
+      }
 
-    const score = this.calculateFitness(schedule);
-    return [{ schedule, score }];
+      const score = this.calculateFitness(bestPartialSchedule);
+      return [{ schedule: bestPartialSchedule, score, conflicts }];
+    }
   }
 
+  // ... (rest of methods likely unchanged, keeping expandRequests for context if needed, but only replacing generate and backtrack logic if needed)
+
   private expandRequests(): LessonRequest[] {
+    // ... same as before
     const requests: LessonRequest[] = [];
     let counter = 0;
 
@@ -120,7 +150,6 @@ export class GeneticScheduler {
       });
     });
 
-    // Order by teacher availability (least options first) then by class/id stability
     return requests.sort((a, b) => {
       const availA = this.input.teachers.find(t => t.id === a.teacher_id)?.disponibility.length ?? Infinity;
       const availB = this.input.teachers.find(t => t.id === b.teacher_id)?.disponibility.length ?? Infinity;
@@ -133,6 +162,7 @@ export class GeneticScheduler {
   }
 
   private buildAvailabilityMap(): Map<string, TimeSlot[]> {
+     // ... same as before
     const dayOrder = new Map<string, number>();
     this.input.days.forEach((d, idx) => dayOrder.set(d, idx));
 
@@ -200,7 +230,7 @@ export class GeneticScheduler {
   }
 
   private calculateFitness(schedule: Lesson[]): number {
-    // Simple heuristic: fewer gaps for teachers and balanced distribution
+    // ... same as before
     const dayOrder = new Map<string, number>();
     this.input.days.forEach((d, idx) => dayOrder.set(d, idx));
 
@@ -225,10 +255,9 @@ export class GeneticScheduler {
       });
     });
 
-    // Penalize using too many days for the same teacher
     teacherDayPeriods.forEach(dayMap => {
       const daysUsed = dayMap.size;
-      score -= Math.max(0, daysUsed - 3); // prefer concentration but allow up to 3 days without penalty
+      score -= Math.max(0, daysUsed - 3); 
     });
 
     return Math.max(0, score);

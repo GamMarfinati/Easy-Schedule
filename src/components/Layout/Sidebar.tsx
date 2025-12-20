@@ -50,6 +50,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onCollapseChange }) => {
 
   return (
     <div 
+      id="sidebar-container"
       className={`flex flex-col bg-gradient-to-b from-indigo-900 via-indigo-800 to-violet-900 h-screen fixed left-0 top-0 overflow-y-auto transition-all duration-300 ease-in-out ${isCollapsed ? 'w-20' : 'w-64'}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}

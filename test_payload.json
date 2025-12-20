@@ -1,0 +1,23 @@
+
+{
+  "teachers": [
+    {
+      "id": "t1",
+      "name": "Ana Silva",
+      "subject": "Matemática",
+      "availabilityDays": ["Segunda-feira", "Quarta-feira"],
+      "classAssignments": [{ "grade": "1º A", "classCount": 2 }]
+    },
+    {
+      "id": "t2",
+      "name": "Bruno Souza",
+      "subject": "História",
+      "availabilityDays": ["Terça-feira", "Quinta-feira"],
+      "classAssignments": [{ "grade": "1º A", "classCount": 2 }]
+    }
+  ],
+  "timeSlots": ["1ª Aula", "2ª Aula", "3ª Aula", "4ª Aula"],
+  "config": {
+    "preferences": "minimize_gaps"
+  }
+}
