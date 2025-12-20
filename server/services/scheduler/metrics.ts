@@ -1,5 +1,5 @@
 
-import { Schedule } from '../../../types';
+import { Schedule } from '../../../types.js';
 
 export interface ScheduleQualityMetrics {
   totalGaps: number;
