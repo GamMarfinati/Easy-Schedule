@@ -139,6 +139,9 @@ apiRoutes.post('/schedules/validate', validateViability); // Validação de viab
 apiRoutes.get('/schedules/:id/export', exportSchedule);
 apiRoutes.post('/generate', adapter(generateHandler));
 
+import teachersRoutes from './server/routes/teachers.js';
+apiRoutes.use('/teachers', teachersRoutes);
+
 protectedRouter.use(apiRoutes);
 
 // ⚠️ ROTA DE TESTE TEMPORÁRIA (REMOVER EM PRODUÇÃO)

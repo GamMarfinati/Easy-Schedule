@@ -10,6 +10,7 @@ export interface Teacher {
   name: string;
   subject: string;
   availabilityDays: string[];
+  availability?: Record<string, number[]>;
   classAssignments: ClassAssignment[];
 }
 

@@ -19,6 +19,7 @@ interface FrontendTeacher {
   name: string;
   subject: string;
   availabilityDays: string[];
+  availability?: Record<string, number[]>; // Novo campo JSONB: { 'Seg': [0,1,1...], ... }
   classAssignments: FrontendClassAssignment[];
 }
 
@@ -68,12 +69,33 @@ export function convertToGeneticInput(
   const gaTeachers: GATeacher[] = frontendTeachers.map(t => {
     // Converter dias disponíveis para TimeSlots
     const disponibility: TimeSlot[] = [];
-    t.availabilityDays.forEach(day => {
-      const shortDay = DAY_MAP[day] || day.substring(0, 3).toLowerCase();
-      for (let period = 1; period <= numPeriods; period++) {
-        disponibility.push({ day: shortDay, period });
-      }
-    });
+
+    // Prioridade: t.availability (Slots finos) > t.availabilityDays (Dia inteiro)
+    if (t.availability && Object.keys(t.availability).length > 0) {
+       Object.entries(t.availability).forEach(([dayKey, slotsMask]) => {
+          // dayKey vem como "Seg", "Ter", etc. Precisamos mapear para 'seg', 'ter'...
+          // O formato do banco é "Seg", "Ter"...
+          // O scheduler usa 'seg', 'ter'...
+          const shortDay = dayKey.toLowerCase().substring(0, 3);
+          
+          if (DAYS_SHORT.includes(shortDay)) {
+             slotsMask.forEach((isAvailable, index) => {
+                // index 0 -> period 1
+                if (isAvailable === 1) {
+                   disponibility.push({ day: shortDay, period: index + 1 });
+                }
+             });
+          }
+       });
+    } else {
+       // Fallback: Compatibilidade com modelo antigo (dias inteiros)
+       t.availabilityDays.forEach(day => {
+         const shortDay = DAY_MAP[day] || day.substring(0, 3).toLowerCase();
+         for (let period = 1; period <= numPeriods; period++) {
+           disponibility.push({ day: shortDay, period });
+         }
+       });
+    }
 
     return {
       id: t.id,

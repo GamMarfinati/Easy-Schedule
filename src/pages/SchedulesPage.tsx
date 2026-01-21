@@ -72,26 +72,68 @@ const SchedulesPage: React.FC = () => {
     loadPresets();
   }, []);
 
-  const addTeacher = useCallback((newTeacherData: Omit<Teacher, "id">) => {
-    const newTeacher: Teacher = { ...newTeacherData, id: crypto.randomUUID() };
-    setTeachers((prev) => [...prev, newTeacher]);
+  // Carregar professores
+  useEffect(() => {
+    const fetchTeachers = async () => {
+      try {
+        const response = await api.get('/teachers');
+        if (response.data) {
+           setTeachers(response.data);
+        }
+      } catch (err) {
+        console.error("Erro ao buscar professores:", err);
+      }
+    };
+    fetchTeachers();
+  }, []);
+
+  const addTeacher = useCallback(async (newTeacherData: Omit<Teacher, "id">) => {
+    try {
+        const response = await api.post('/teachers', newTeacherData);
+        setTeachers((prev) => [...prev, response.data]);
+    } catch (err) {
+        console.error("Erro ao adicionar professor:", err);
+        // Fallback local? No, prompt requested API persistence.
+    }
   }, []);
 
   const removeTeacher = useCallback(
-    (id: string) => {
-      setTeachers((prev) => prev.filter((t) => t.id !== id));
-      if (editingTeacher?.id === id) {
-        setEditingTeacher(null);
+    async (id: string) => {
+      try {
+          await api.delete(`/teachers/${id}`);
+          setTeachers((prev) => prev.filter((t) => t.id !== id));
+          if (editingTeacher?.id === id) {
+            setEditingTeacher(null);
+          }
+      } catch (err) {
+          console.error("Erro ao remover professor:", err);
       }
     },
     [editingTeacher]
   );
 
-  const handleImport = useCallback((importedTeachers: Teacher[]) => {
-    setTeachers(importedTeachers);
-    setSchedule(null);
-    setError(null);
-    setEditingTeacher(null);
+  const handleImport = useCallback(async (importedTeachers: Teacher[]) => {
+    setIsLoading(true);
+    try {
+        const savedTeachers: Teacher[] = [];
+        
+        // Save imported teachers to DB one by one (or batch if API supported it)
+        for (const teacher of importedTeachers) {
+            const { id, ...teacherData } = teacher; // Remove temp ID
+            const response = await api.post('/teachers', teacherData);
+            savedTeachers.push(response.data);
+        }
+        
+        setTeachers((prev) => [...prev, ...savedTeachers]);
+        setSchedule(null);
+        setError(null);
+        setEditingTeacher(null);
+    } catch (err) {
+        console.error("Erro ao importar professores:", err);
+        setError({ message: "Erro ao salvar professores importados no banco de dados." });
+    } finally {
+        setIsLoading(false);
+    }
   }, []);
 
   const handleEditTeacher = useCallback(
@@ -111,12 +153,22 @@ const SchedulesPage: React.FC = () => {
     [teachers]
   );
 
-  const handleUpdateTeacher = useCallback((updatedTeacher: Teacher) => {
-    setTeachers((prev) =>
-      prev.map((t) => (t.id === updatedTeacher.id ? updatedTeacher : t))
-    );
-    setEditingTeacher(null);
-  }, []);
+  const handleUpdateTeacher = useCallback(async (updatedTeacher: Teacher) => {
+    try {
+        const response = await api.put(`/teachers/${updatedTeacher.id}`, updatedTeacher);
+        const savedTeacher = response.data;
+        
+        setTeachers((prev) =>
+          prev.map((t) => (t.id === savedTeacher.id ? savedTeacher : t))
+        );
+        // Only clear editing state if we were editing this teacher in the FORM
+        if (editingTeacher && editingTeacher.id === savedTeacher.id) {
+             setEditingTeacher(null);
+        }
+    } catch (err) {
+        console.error("Erro ao atualizar professor:", err);
+    }
+  }, [editingTeacher]);
 
   const handleCancelEdit = useCallback(() => {
     setEditingTeacher(null);
@@ -485,6 +537,7 @@ const SchedulesPage: React.FC = () => {
                   teacher={teacher}
                   onRemove={removeTeacher}
                   onEdit={handleEditTeacher}
+                  onUpdate={handleUpdateTeacher}
                   isConflicting={error?.conflictingTeachers?.includes(
                     teacher.name
                   )}

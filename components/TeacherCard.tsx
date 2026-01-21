@@ -1,15 +1,85 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Teacher } from '../types';
 
 interface TeacherCardProps {
   teacher: Teacher;
   onRemove: (id: string) => void;
   onEdit: (id: string) => void;
+  onUpdate: (teacher: Teacher) => void;
   isConflicting?: boolean;
   conflictingDays?: string[];
 }
 
-const TeacherCard: React.FC<TeacherCardProps> = ({ teacher, onRemove, onEdit, isConflicting, conflictingDays = [] }) => {
+import { DAYS_OF_WEEK } from '../constants';
+
+const TeacherCard: React.FC<TeacherCardProps> = ({ teacher, onRemove, onEdit, onUpdate, isConflicting, conflictingDays = [] }) => {
+  const [activeDay, setActiveDay] = useState<string | null>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Close popover when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+        setActiveDay(null);
+      }
+    };
+    if (activeDay) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [activeDay]);
+
+  const handleDayClick = (day: string) => {
+    setActiveDay(activeDay === day ? null : day);
+  };
+
+  const toggleSlot = (day: string, slotIndex: number) => {
+    const currentAvailability = teacher.availability || {};
+    let daySlots = currentAvailability[day];
+
+    // Initialize with all 1s if not present
+    if (!daySlots) {
+       daySlots = [1, 1, 1, 1, 1, 1]; // Assume 6 slots default
+    }
+
+    const newSlots = [...daySlots];
+    newSlots[slotIndex] = newSlots[slotIndex] === 1 ? 0 : 1;
+
+    // Check if all are 0? user might want that.
+    
+    const updatedTeacher = {
+        ...teacher,
+        availability: {
+            ...currentAvailability,
+            [day]: newSlots
+        }
+    };
+    
+    onUpdate(updatedTeacher);
+  };
+
+  // Helper to get slot status
+  const getSlotStatus = (day: string, index: number) => {
+      // If availability mapping exists, use it
+     if (teacher.availability && teacher.availability[day]) {
+         return teacher.availability[day][index] === 1;
+     }
+     // Default is available (1) if day is in availabilityDays (controlled by parent logic mostly)
+     return true;
+  };
+  
+  // Sort days: create a map of day -> index
+  const dayOrder = DAYS_OF_WEEK.reduce((acc, day, index) => {
+      acc[day] = index;
+      return acc;
+  }, {} as Record<string, number>);
+
+  const sortedDays = (teacher.availabilityDays || []).sort((a, b) => {
+      return (dayOrder[a] ?? 99) - (dayOrder[b] ?? 99);
+  });
+
   return (
     <div className={`bg-white p-4 rounded-xl shadow-md border border-gray-200 relative transition-all hover:shadow-lg ${isConflicting ? 'border-red-500 ring-2 ring-red-200' : 'hover:border-primary'}`}>
         <div className="absolute top-2 right-2 flex items-center">
@@ -30,13 +100,56 @@ const TeacherCard: React.FC<TeacherCardProps> = ({ teacher, onRemove, onEdit, is
                 ))}
             </div>
         </div>
-        <div className="mt-3">
-             <p className="font-semibold text-xs text-gray-500 mb-1">Disponibilidade:</p>
+        <div className="mt-3 relative">
+             <p className="font-semibold text-xs text-gray-500 mb-1">Disponibilidade (Clique para ajustar slots):</p>
              <div className="flex flex-wrap gap-1.5">
-                {teacher.availabilityDays.map(day => (
-                    <span key={day} className={`text-xs px-2 py-1 rounded-full font-medium ${conflictingDays.includes(day) ? 'bg-red-200 text-red-900 ring-1 ring-red-500' : 'bg-green-100 text-green-800'}`}>
-                        {day.substring(0,3)}
-                    </span>
+                {sortedDays.map(day => (
+                    <div key={day} className="relative">
+                        <button 
+                            type="button"
+                            onClick={() => handleDayClick(day)}
+                            className={`text-xs px-2 py-1 rounded-full font-medium transition-colors cursor-pointer border ${
+                                conflictingDays.includes(day) 
+                                    ? 'bg-red-200 text-red-900 border-red-500' 
+                                    : activeDay === day
+                                       ? 'bg-purple-100 text-purple-900 border-purple-400 ring-2 ring-purple-200'
+                                       : 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200'
+                            }`}
+                        >
+                            {day.substring(0,3)}
+                        </button>
+                        
+                        {activeDay === day && (
+                            <div ref={popoverRef} className="absolute bottom-full left-0 mb-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-50 p-3">
+                                <h5 className="text-xs font-bold text-gray-700 mb-2 text-center">{day} - Selecione as aulas</h5>
+                                <div className="flex flex-col gap-2">
+                                    {[0, 1, 2, 3, 4, 5].map(idx => {
+                                        const isActive = getSlotStatus(day, idx);
+                                        return (
+                                            <button 
+                                                type="button"
+                                                key={idx}
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    toggleSlot(day, idx);
+                                                }}
+                                                className={`w-full py-1.5 flex items-center justify-center text-xs font-bold rounded transition-colors ${
+                                                    isActive 
+                                                        ? 'bg-green-500 text-white hover:bg-green-600' 
+                                                        : 'bg-red-100 text-red-400 hover:bg-red-200'
+                                                }`}
+                                                title={`Slot ${idx + 1}`}
+                                            >
+                                                Aula {idx + 1}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <div className="mt-2 text-[10px] text-gray-400 text-center">Verde = Disponível</div>
+                            </div>
+                        )}
+                    </div>
                 ))}
             </div>
         </div>
