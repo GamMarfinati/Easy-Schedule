@@ -20,6 +20,7 @@ export interface ProfessorRegra {
   disciplina: string;
   cargaHorariaPorTurma: Record<string, number>;  // { "1º Ano EM": 5, "2º Ano EM": 3 }
   diasDisponiveis: string[];
+  restricoesGranulares?: Record<string, number[]>; // { "Seg": [1, 1, 0, 0] } (1=Livre, 0=Bloqueado)
 }
 
 export interface ValidacaoResultado {
@@ -48,7 +49,8 @@ export function converterParaRegras(teachers: any[]): ProfessorRegra[] {
       nome: teacher.name,
       disciplina: teacher.subject,
       cargaHorariaPorTurma,
-      diasDisponiveis: teacher.availabilityDays || []
+      diasDisponiveis: teacher.availabilityDays || [],
+      restricoesGranulares: teacher.availability // Passar o objeto cru do frontend
     };
   });
 }
@@ -140,9 +142,37 @@ export function validarGrade(gradeUnificada: Aula[], regras: ProfessorRegra[]): 
           erros.push(
             `VIOLAÇÃO DE DISPONIBILIDADE: ${prof.nome} foi alocado na ${aula.dia}, ` +
             `mas só está disponível em: ${prof.diasDisponiveis.join(', ')}. ` +
-            `Turma: ${turma}, Horário: ${aula.horario}ª aula.`
+             `Turma: ${turma}, Horário: ${aula.horario}ª aula.`
           );
           professorComErro.add(prof.nome);
+        } else if (prof.restricoesGranulares) {
+           // Checagem Granular (se o dia for válido, mas o horário for bloqueado)
+           // Converter dia 'seg' para chave da restrição 'Seg'
+           // ACHAR A CHAVE CORRETA NO OBJETO DE RESTRIÇÃO
+           // O formato no banco costuma ser "Seg", "Ter" (Capitalized), mas o aula.dia vem 'seg', 'ter' ou 'Segunda-feira'
+           
+           // Mapa auxiliar rápido
+           const mapaDias: Record<string, string> = {
+             'seg': 'Seg', 'ter': 'Ter', 'qua': 'Qua', 'qui': 'Qui', 'sex': 'Sex',
+             'segunda-feira': 'Seg', 'terça-feira': 'Ter', 'quarta-feira': 'Qua', 'quinta-feira': 'Qui', 'sexta-feira': 'Sex'
+           };
+
+           const chaveDia = mapaDias[aula.dia.toLowerCase()];
+           if (chaveDia && prof.restricoesGranulares[chaveDia]) {
+              const slots = prof.restricoesGranulares[chaveDia];
+              // slots array: 0 ou 1. aula.horario é 1-based index.
+              const index = aula.horario - 1;
+              
+              // console.log(`[DEBUG VALIDATOR] Prof: ${prof.nome}, Dia: ${aula.dia} (${chaveDia}), Horario: ${aula.horario}, Value: ${slots[index]}`);
+
+              if (slots[index] === 0) { // 0 significa BLOQUEADO
+                 erros.push(
+                   `VIOLAÇÃO DE HORÁRIO: ${prof.nome} não pode dar aula na ${aula.dia} no ${aula.horario}º horário. ` +
+                   `Restrição específica definida.`
+                 );
+                 professorComErro.add(prof.nome);
+              }
+           }
         }
       });
     });

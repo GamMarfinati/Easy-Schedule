@@ -67,35 +67,39 @@ export function convertToGeneticInput(
 
   // Criar professores no formato do algoritmo
   const gaTeachers: GATeacher[] = frontendTeachers.map(t => {
-    // Converter dias disponíveis para TimeSlots
     const disponibility: TimeSlot[] = [];
 
-    // Prioridade: t.availability (Slots finos) > t.availabilityDays (Dia inteiro)
-    if (t.availability && Object.keys(t.availability).length > 0) {
-       Object.entries(t.availability).forEach(([dayKey, slotsMask]) => {
-          // dayKey vem como "Seg", "Ter", etc. Precisamos mapear para 'seg', 'ter'...
-          // O formato do banco é "Seg", "Ter"...
-          // O scheduler usa 'seg', 'ter'...
-          const shortDay = dayKey.toLowerCase().substring(0, 3);
-          
-          if (DAYS_SHORT.includes(shortDay)) {
-             slotsMask.forEach((isAvailable, index) => {
-                // index 0 -> period 1
-                if (isAvailable === 1) {
-                   disponibility.push({ day: shortDay, period: index + 1 });
-                }
-             });
-          }
-       });
-    } else {
-       // Fallback: Compatibilidade com modelo antigo (dias inteiros)
-       t.availabilityDays.forEach(day => {
-         const shortDay = DAY_MAP[day] || day.substring(0, 3).toLowerCase();
-         for (let period = 1; period <= numPeriods; period++) {
-           disponibility.push({ day: shortDay, period });
-         }
-       });
+    // Normalizar mapa de disponibilidade granular (se existir)
+    const granularAvailability = new Map<string, number[]>();
+    if (t.availability) {
+      Object.entries(t.availability).forEach(([dayKey, slotsMask]) => {
+        const shortDay = dayKey.toLowerCase().substring(0, 3);
+        if (DAYS_SHORT.includes(shortDay)) {
+          granularAvailability.set(shortDay, slotsMask);
+        }
+      });
     }
+
+    // LISTA MESTRE: availabilityDays
+    // Para cada dia que o professor diz que trabalha:
+    t.availabilityDays.forEach(day => {
+       const shortDay = DAY_MAP[day] || day.substring(0, 3).toLowerCase();
+       
+       // Verificamos se há restrição granular (fine-tuning) para este dia
+       if (granularAvailability.has(shortDay)) {
+          const slotsMask = granularAvailability.get(shortDay)!;
+          slotsMask.forEach((isAvailable, index) => {
+             if (isAvailable === 1) {
+                disponibility.push({ day: shortDay, period: index + 1 });
+             }
+          });
+       } else {
+          // Se NÃO tem restrição granular, assume dia cheio (fallback padrão)
+          for (let period = 1; period <= numPeriods; period++) {
+             disponibility.push({ day: shortDay, period });
+          }
+       }
+    });
 
     return {
       id: t.id,
@@ -251,6 +255,7 @@ export function runGeneticScheduler(
     name: t.name,
     subject: t.subject,
     availabilityDays: t.availabilityDays,
+    availability: t.availability, // PASSAR A DISPONIBILIDADE GRANULAR
     classAssignments: t.classAssignments.map(a => ({ grade: a.grade, classCount: a.classCount }))
   })));
 
