@@ -372,7 +372,7 @@ export class GeneticScheduler {
       let possible = true;
       
       // Look ahead apenas para as próximas N variáveis para não perder performance
-      const lookAheadLimit = 50; 
+      const lookAheadLimit = 5; 
       let checked = 0;
 
       for (let k = idx + 1; k < requests.length; k++) {
