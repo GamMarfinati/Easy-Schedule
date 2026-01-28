@@ -6,6 +6,7 @@
 import { ScheduleInput, ScheduleSolution, Lesson, Teacher as GATeacher, ClassGroup, TimeSlot } from './types.js';
 import { GeneticScheduler } from './algorithm.js'; // This is now the Strict CSP Solver
 import { validarGrade, converterParaRegras, Aula, ProfessorRegra, ValidacaoResultado } from './validator.js';
+import { analisarViabilidade } from './viabilidade.js';
 
 // Tipos do Frontend (simplificados)
 interface FrontendClassAssignment {
@@ -69,35 +70,54 @@ export function convertToGeneticInput(
   const gaTeachers: GATeacher[] = frontendTeachers.map(t => {
     const disponibility: TimeSlot[] = [];
 
-    // Normalizar mapa de disponibilidade granular (se existir)
+    // 1. Normalizar mapa de disponibilidade granular
+    // Padroniza chaves para 'seg', 'ter', etc.
     const granularAvailability = new Map<string, number[]>();
     if (t.availability) {
       Object.entries(t.availability).forEach(([dayKey, slotsMask]) => {
-        const shortDay = dayKey.toLowerCase().substring(0, 3);
+        // Normalização robusta: 'Segunda', 'Seg', 'seg' -> 'seg'
+        let shortDay = dayKey.toLowerCase().substring(0, 3);
+        if (DAY_MAP[dayKey]) shortDay = DAY_MAP[dayKey]; // Garante uso do mapa se disponível
+        
         if (DAYS_SHORT.includes(shortDay)) {
           granularAvailability.set(shortDay, slotsMask);
         }
       });
     }
 
-    // LISTA MESTRE: availabilityDays
-    // Para cada dia que o professor diz que trabalha:
-    t.availabilityDays.forEach(day => {
-       const shortDay = DAY_MAP[day] || day.substring(0, 3).toLowerCase();
-       
-       // Verificamos se há restrição granular (fine-tuning) para este dia
-       if (granularAvailability.has(shortDay)) {
-          const slotsMask = granularAvailability.get(shortDay)!;
-          slotsMask.forEach((isAvailable, index) => {
-             if (isAvailable === 1) {
-                disponibility.push({ day: shortDay, period: index + 1 });
-             }
-          });
-       } else {
-          // Se NÃO tem restrição granular, assume dia cheio (fallback padrão)
-          for (let period = 1; period <= numPeriods; period++) {
-             disponibility.push({ day: shortDay, period });
-          }
+    // Função de Validação de Slot (Conforme Requisito)
+    // Retorna TRUE se o slot está disponível para uso
+    const isSlotValid = (day: string, periodIndex: number): boolean => {
+         // Se tem restrição específica para este dia, obedece a máscara
+         if (granularAvailability.has(day)) {
+             const mask = granularAvailability.get(day)!;
+             // Se índice existe na máscara, retorna valor (1=Livre, 0=Bloq)
+             // Se índice excede a máscara (ex: 6ª aula mas mask só tem 5), assume LIVRE ou BLOQUEADO?
+             // Pela lógica segura, assumimos que a máscara cobre tudo. Se não cobrir, assume 1 (Livre) para não bloquear indevidamente.
+             // Mas para ser consistente com "block_slots", se o user definiu mask, ele definiu tudo.
+             // Vamos ser estritos: Se definido, obedece. Se undefined (out of bounds), assume 1.
+             const val = mask[periodIndex];
+             return val !== 0; // 1 ou undefined => True. 0 => False.
+         }
+         // Se não tem restrição granular, e o dia está em availabilityDays, então é TRUE (Dia cheio)
+         return true;
+    };
+
+    // 2. Iterar sobre availabilityDays (Dias que o professor trabalha)
+    t.availabilityDays.forEach(dayName => {
+       // Normalizar nome do dia
+       let shortDay = dayName.toLowerCase().substring(0, 3);
+       if (DAY_MAP[dayName]) shortDay = DAY_MAP[dayName];
+
+       // Verificação bruta: O dia é válido?
+       if (!DAYS_SHORT.includes(shortDay)) return;
+
+       // 3. Iterar sobre todos os períodos possíveis
+       for (let p = 0; p < numPeriods; p++) {
+           // Checa slot isoladamente
+           if (isSlotValid(shortDay, p)) {
+               disponibility.push({ day: shortDay, period: p + 1 }); // period é 1-based
+           }
        }
     });
 
@@ -248,6 +268,42 @@ export function runGeneticScheduler(
   } = options;
 
   console.log(`[StrictScheduler] Iniciando com ${frontendTeachers.length} professores`);
+
+  // =========================================================
+  // 1. PRÉ-VALIDAÇÃO (FAIL FAST)
+  // =========================================================
+  const teachersForAnalysis = frontendTeachers.map(t => ({
+      name: t.name,
+      subject: t.subject,
+      availabilityDays: t.availabilityDays,
+      availability: t.availability,
+      classAssignments: t.classAssignments.map(a => ({
+          grade: a.grade,
+          classCount: a.classCount
+      }))
+  }));
+
+  const analise = analisarViabilidade(teachersForAnalysis, timeSlots);
+
+  if (!analise.viavel) {
+      console.warn(`[StrictScheduler] ⛔ ABORTADO: Grade matematicamente inviável.`);
+      
+      const errosCriticos = analise.problemas
+          .filter(p => p.tipo === 'CRITICO')
+          .map(p => `⛔ ${p.mensagem} ${p.detalhes || ''}`);
+
+      return {
+          success: false,
+          schedule: [],
+          attempts: 0,
+          bestScore: 0,
+          validationResult: { 
+              valido: false, 
+              erros: errosCriticos 
+          },
+          conflicts: []
+      };
+  }
 
   // Converter dados
   const input = convertToGeneticInput(frontendTeachers, timeSlots);

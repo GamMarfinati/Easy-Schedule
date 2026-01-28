@@ -9,6 +9,7 @@ interface ScheduleDisplayProps {
   teachers: Teacher[];
   onSave?: (schedule: Schedule) => Promise<void>;
   isSaving?: boolean;
+  externalConflicts?: any[];
 }
 
 type DisplayMode = "geral" | "turma" | "professor";
@@ -259,6 +260,11 @@ const calculateQualityMetrics = (schedule: Schedule, teachers: Teacher[]): Quali
   const teacherTotalLessons = new Map<string, number>();
   const classOccupancy = new Map<string, Map<string, Map<string, boolean>>>(); // Grade -> Day -> Time -> isOccupied
 
+  // Calcular total esperado de aulas
+  const expectedLessons = teachers.reduce((sum, t) => 
+    sum + t.classAssignments.reduce((s, a) => s + a.classCount, 0), 0
+  );
+
   // Inicializar ocupação das turmas
   Object.keys(schedule).forEach(day => {
     Object.keys(schedule[day]).forEach(time => {
@@ -299,6 +305,12 @@ const calculateQualityMetrics = (schedule: Schedule, teachers: Teacher[]): Quali
       }
     });
   });
+
+  // Check for Missing Lessons (Grade Incompleta)
+  if (totalLessons < expectedLessons) {
+      const diff = expectedLessons - totalLessons;
+      conflicts.push(`CRÍTICO: Grade Incompleta. Foram geradas apenas ${totalLessons} de ${expectedLessons} aulas. Há ${diff} horários vagos.`);
+  }
 
   // 2. Análise
   teacherStats.forEach((dayMap, teacherName) => {
@@ -515,6 +527,7 @@ const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({
   teachers,
   onSave,
   isSaving,
+  externalConflicts,
 }) => {
   const [displayMode, setDisplayMode] = useState<DisplayMode>(() => {
     const savedMode =
@@ -554,9 +567,29 @@ const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({
 
   // Calculando métricas para o modal
   const reportMetrics = useMemo(() => {
-    if (!schedule) return { totalLessons: 0, warnings: [], hints: [], conflicts: [] };
-    return calculateQualityMetrics(schedule, teachers);
-  }, [schedule, teachers]);
+    if (!schedule) return { totalLessons: 0, warnings: [], hints: [], suggestions: [], conflicts: [] };
+    const metrics = calculateQualityMetrics(schedule, teachers);
+
+    if (externalConflicts && externalConflicts.length > 0) {
+       // Filter out generic frontend "Grade Incompleta" if we have specific backend details
+       // Actually, let's keep the summary but append details.
+       externalConflicts.forEach(c => {
+           if (c.type === 'unallocated') {
+                // Add as conflict
+                metrics.conflicts.push(`⚠️ ${c.message} ${c.details ? `\n👉 ${c.details}` : ''}`);
+                
+                // Also add as suggestion if relevant
+                if (c.details) {
+                    metrics.suggestions.push(`Para resolver ${c.message.split('.')[0]}: ${c.details}`);
+                }
+           } else {
+                metrics.conflicts.push(c.message);
+           }
+       });
+    }
+    return metrics;
+  }, [schedule, teachers, externalConflicts]);
+
 
   useEffect(() => {
     if (allGrades.length > 0 && !selectedGrade) {

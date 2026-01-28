@@ -37,6 +37,8 @@ export interface GenerationResult {
     totalLessons?: number;
     generatedAt: string;
   };
+  metrics?: any;
+  conflicts?: any[];
 }
 
 // Verifica se é um erro de viabilidade
@@ -175,10 +177,10 @@ export const validateViability = async (
 export const generateSchedule = async (
   teachers: Teacher[], 
   timeSlots: string[]
-): Promise<Schedule> => {
+): Promise<GenerationResult> => {
   try {
     const response = await api.post('/schedules/generate', { teachers, timeSlots });
-    return response.data.schedule;
+    return response.data;
   } catch (error: any) {
     console.error("Erro ao comunicar com o serviço de geração de grade:", error);
 

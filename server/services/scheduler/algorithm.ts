@@ -24,7 +24,7 @@ const slotKey = (slot: TimeSlot) => `${slot.day}-${slot.period}`;
 
 export class GeneticScheduler {
   private input: ScheduleInput;
-  private maxNodes = 5000000;
+  private maxNodes = 10000000;
 
   // Declaração das propriedades que faltavam
   private variables: SchedulerVariable[];
@@ -74,91 +74,212 @@ export class GeneticScheduler {
   }
 
   public generate(): ScheduleSolution[] {
-    const requests = this.expandRequests();
-    const availabilityMap = this.buildAvailabilityMap();
+    let bestGlobalSchedule: Lesson[] = [];
+    let maxGlobalPlaced = 0;
+    const maxRestarts = 5;
+    const originalMaxNodes = this.maxNodes;
+    this.maxNodes = 2000000; // 2M nodes per restart (total ~10M)
 
-    const schedule: Lesson[] = [];
-    const teacherBusy = new Set<string>();
-    const classBusy = new Set<string>();
+    // Track best solution across all restarts
+    for (let attempt = 0; attempt < maxRestarts; attempt++) {
+        if (attempt > 0) {
+            console.log(`[Algorithm] Restarting search (Attempt ${attempt + 1}/${maxRestarts})...`);
+            this.shuffleVariables(); 
+        }
 
-    let nodesExplored = 0;
+        const requests = this.expandRequests();
+        const availabilityMap = this.buildAvailabilityMap();
+        const schedule: Lesson[] = [];
+        const teacherBusy = new Set<string>();
+        const classBusy = new Set<string>();
+        let nodesExplored = 0;
+        
+        // Local best for this attempt
+        let maxPlacedThisAttempt = 0;
+
+        // Callback to track progress and stop if taking too long
+        const budgetCheck = () => {
+          nodesExplored++;
+          // A cada 1000 nós, se o schedule atual for maior que o global, salva como melhor parcial
+          if (nodesExplored % 1000 === 0) {
+             if (schedule.length > maxGlobalPlaced) {
+                 maxGlobalPlaced = schedule.length;
+                 bestGlobalSchedule = [...schedule]; // Snapshot copy
+             }
+          }
+          return nodesExplored <= this.maxNodes;
+        };
+
+        // Run backtracking
+        this.backtrack(0, requests, schedule, teacherBusy, classBusy, availabilityMap, budgetCheck);
+        
+        // Final check for this attempt
+        if (schedule.length > maxGlobalPlaced) {
+             maxGlobalPlaced = schedule.length;
+             bestGlobalSchedule = [...schedule];
+        }
+
+        console.log(`[Algorithm] Tentativa ${attempt + 1}: ${schedule.length}/${requests.length} aulas alocadas.`);
+
+        // Se encontrou TODOS, retorna imediatamente (Sucesso Total)
+        if (schedule.length === requests.length) {
+          console.log(`[Algorithm] Sucesso TOTAL na tentativa ${attempt + 1}!`);
+          const score = this.calculateFitness(schedule);
+          return [{ schedule, score, conflicts: [] }];
+        }
+    }
+
+    console.warn(`[Algorithm] Incompleto após tentativas. Retornando melhor parcial: ${maxGlobalPlaced} aulas.`);
     
-    // Rastrear melhor solução parcial
-    let bestPartialSchedule: Lesson[] = [];
-    let maxPlaced = 0;
+    // --- Detailed Conflict Analysis ---
+    // --- Detailed Conflict Analysis ---
+    const conflicts: any[] = [];
 
-    const trackBest = (currentSchedule: Lesson[]) => {
-      if (currentSchedule.length > maxPlaced) {
-        maxPlaced = currentSchedule.length;
-        bestPartialSchedule = [...currentSchedule]; // clone
-      }
-    };
+    // 1. Identify actually unplaced variables
+    const placedTracker = new Map<string, number>(); 
+    const actuallyUnplaced: SchedulerVariable[] = [];
 
-    const success = this.backtrack(0, requests, schedule, teacherBusy, classBusy, availabilityMap, () => {
-      nodesExplored++;
-      trackBest(schedule); // Verifica se é a melhor a cada passo (ou poderia ser menos frequente)
-      return nodesExplored <= this.maxNodes;
+    this.variables.forEach(v => {
+        const key = `${v.classId}|${v.subject.name}|${v.teacherId}`;
+        const placedSoFar = placedTracker.get(key) || 0;
+        
+        const totalInSchedule = bestGlobalSchedule.filter(l => 
+            l.class_id === v.classId && 
+            l.subject === v.subject.name && 
+            l.teacher_id === v.teacherId
+        ).length;
+
+        if (placedSoFar < totalInSchedule) {
+            placedTracker.set(key, placedSoFar + 1);
+        } else {
+            actuallyUnplaced.push(v);
+        }
     });
 
-    if (success) {
-      console.log(`[GeneticScheduler] Sucesso total! ${schedule.length} aulas alocadas.`);
-      const score = this.calculateFitness(schedule);
-      return [{ schedule, score, conflicts: [] }];
-    } else {
-      console.warn(`[GeneticScheduler] Falha em completar (Nodes: ${nodesExplored}). Retornando melhor parcial (${bestPartialSchedule.length}/${requests.length} aulas).`);
-      
-      // Identificar conflitos/aulas faltantes
-      // As aulas que FALTAM são tecnicamente "conflitos de alocação"
-      const missingRequests = requests.length - bestPartialSchedule.length;
-      const conflicts: any[] = [];
-      
-      if (missingRequests > 0) {
-          // Adiciona conflitos genéricos para o usuário saber que faltou alocar
-          conflicts.push({ type: 'unallocated', message: `Não foi possível alocar ${missingRequests} aulas automaticamente.` });
-      }
+    // 2. lookup maps for Analysis
+    const teacherScheduleMap = new Map<string, Lesson>();
+    const classScheduleMap = new Map<string, Lesson>();
+    bestGlobalSchedule.forEach(l => {
+        teacherScheduleMap.set(`${l.teacher_id}|${l.day}|${l.period}`, l);
+        classScheduleMap.set(`${l.class_id}|${l.day}|${l.period}`, l);
+    });
 
-      const score = this.calculateFitness(bestPartialSchedule);
-      return [{ schedule: bestPartialSchedule, score, conflicts }];
-    }
+    // 3. Group and Analyze
+    const groupedUnplaced = new Map<string, SchedulerVariable[]>();
+    actuallyUnplaced.forEach(v => {
+        const key = `${v.classId}|${v.subject.name}|${v.teacherId}`;
+        if (!groupedUnplaced.has(key)) groupedUnplaced.set(key, []);
+        groupedUnplaced.get(key)!.push(v);
+    });
+
+    // Helper to format Day/Period
+    const formatSlot = (d: string, p: number) => {
+        // Simple map if possible, else generic
+        const dayMap: any = { 'seg': 'Seg', 'ter': 'Ter', 'qua': 'Qua', 'qui': 'Qui', 'sex': 'Sex' };
+        return `${dayMap[d] || d} ${p}ª`;
+    };
+
+    groupedUnplaced.forEach((vars) => {
+        const sample = vars[0];
+        const teacher = this.input.teachers.find(t => t.id === sample.teacherId);
+        const teacherName = teacher?.name || sample.teacherId;
+        const classObj = this.input.classes.find(c => c.id === sample.classId);
+        const className = classObj?.name || sample.classId;
+        const subjectName = sample.subject.name;
+
+        const validSlots = this.domains.get(sample.id) || [];
+        
+        // Causa 1: Sem disponibilidade (Domínio Vazio)
+        if (validSlots.length === 0) {
+             conflicts.push({ 
+                 type: 'availability', 
+                 message: `O Prof. ${teacherName} não tem horários compatíveis configurados para ${subjectName} (${className}).`,
+                 details: "Ajuste a disponibilidade do professor ou da turma."
+             });
+             return;
+        }
+
+        // Causa 2: Slots validos estão ocupados
+        const reasons: string[] = [];
+        let blockedByTeacherCount = 0;
+        let blockedByClassCount = 0;
+
+        validSlots.forEach(slot => {
+             const tKey = `${sample.teacherId}|${slot.day}|${slot.period}`;
+             const cKey = `${sample.classId}|${slot.day}|${slot.period}`;
+             
+             const tLesson = teacherScheduleMap.get(tKey);
+             const cLesson = classScheduleMap.get(cKey);
+
+             if (tLesson) {
+                 blockedByTeacherCount++;
+                 // Find who the teacher is teaching instead
+                 const otherClassName = this.input.classes.find(c => c.id === tLesson.class_id)?.name || "outra turma";
+                 reasons.push(`Prof. ocupado com ${otherClassName} na ${formatSlot(slot.day, slot.period)}`);
+             } else if (cLesson) {
+                 blockedByClassCount++;
+                 // Find who is teaching the class instead
+                 const otherTeacherName = this.input.teachers.find(t => t.id === cLesson.teacher_id)?.name || "outro prof";
+                 reasons.push(`Turma ocupada com ${otherTeacherName} (${cLesson.subject}) na ${formatSlot(slot.day, slot.period)}`);
+             }
+        });
+
+        const missingCount = vars.length;
+        let mainMsg = `Não foi possível alocar ${missingCount} aula(s) de ${subjectName} (${teacherName}) na turma ${className}.`;
+        let userAction = "";
+
+        // Heurística de Mensagem
+        if (blockedByTeacherCount === validSlots.length) {
+            mainMsg = `Prof. ${teacherName} está ocupado em TODOS os seus horários possíveis.`;
+            userAction = `Sugestão: O professor precisa liberar mais horários ou trocar aulas de outras turmas.`;
+        } else if (blockedByClassCount === validSlots.length) {
+            const conflictingProf = reasons[0].match(/com (.+?) \(/)?.[1] || "outro professor";
+            mainMsg = `Conflito Direto: A turma ${className} já está ocupada nos dias em que o Prof. ${teacherName} pode.`;
+            userAction = `Sugestão: Verifique se ${conflictingProf} pode ceder o horário ou mude a disponibilidade de ${teacherName}.`;
+        } else {
+            mainMsg = `Conflito Complexo: ${teacherName} disputa horários com outros professores na turma ${className}.`;
+            userAction = `Sugestão: Tente processar esta disciplina com prioridade maior ou flexibilizar os horários.`;
+        }
+
+        // Pick top 3 unique reasons
+        const uniqueReasons = Array.from(new Set(reasons));
+        const logicTrace = uniqueReasons.slice(0, 3).join("; ") + (uniqueReasons.length > 3 ? "..." : ".");
+
+        conflicts.push({ 
+            type: 'unallocated', 
+            message: mainMsg, 
+            details: `${userAction} Detalhes: ${logicTrace}` 
+        });
+    });
+
+    const score = this.calculateFitness(bestGlobalSchedule);
+    return [{ schedule: bestGlobalSchedule, score, conflicts }];
+  }
+
+  private shuffleVariables() {
+      // Fisher-Yates shuffle but respecting MRV (sort by domain size, but randomize ties or slightly perturb domain size)
+      // Actually, pure random shuffle might destroy MRV benefit. 
+      // Better: Sort by Domain Size + Random Noise
+      this.variables.sort((a, b) => {
+          const lenA = this.domains.get(a.id)?.length || 0;
+          const lenB = this.domains.get(b.id)?.length || 0;
+          // Weighted: Primary is length, Secondary is random
+          if (lenA !== lenB) return lenA - lenB;
+          return Math.random() - 0.5;
+      });
   }
 
   // ... (rest of methods likely unchanged, keeping expandRequests for context if needed, but only replacing generate and backtrack logic if needed)
 
   private expandRequests(): LessonRequest[] {
-    // ... same as before
-    const requests: LessonRequest[] = [];
-    let counter = 0;
-
-    const orderedClasses = [...this.input.classes].sort((a, b) => a.id.localeCompare(b.id));
-
-    orderedClasses.forEach(cls => {
-      const orderedSubjects = [...cls.subjects].sort((a, b) => {
-        if (a.hours_per_week !== b.hours_per_week) return b.hours_per_week - a.hours_per_week;
-        if (a.teacher_id !== b.teacher_id) return a.teacher_id.localeCompare(b.teacher_id);
-        return a.name.localeCompare(b.name);
-      });
-
-      orderedSubjects.forEach(subject => {
-        for (let i = 0; i < subject.hours_per_week; i++) {
-          requests.push({
-            class_id: cls.id,
-            subject: subject.name,
-            teacher_id: subject.teacher_id,
-            index: counter++
-          });
-        }
-      });
-    });
-
-    return requests.sort((a, b) => {
-      const availA = this.input.teachers.find(t => t.id === a.teacher_id)?.disponibility.length ?? Infinity;
-      const availB = this.input.teachers.find(t => t.id === b.teacher_id)?.disponibility.length ?? Infinity;
-      if (availA !== availB) return availA - availB;
-      if (a.class_id !== b.class_id) return a.class_id.localeCompare(b.class_id);
-      if (a.teacher_id !== b.teacher_id) return a.teacher_id.localeCompare(b.teacher_id);
-      if (a.subject !== b.subject) return a.subject.localeCompare(b.subject);
-      return a.index - b.index;
-    });
+    // Use the variables that were ALREADY sorted by MRV (Minimum Remaining Values) in the constructor
+    // This ensures we tackle the most constrained lessons (hardest to place) first.
+    return this.variables.map((v, index) => ({
+      class_id: v.classId,
+      subject: v.subject.name,
+      teacher_id: v.teacherId,
+      index: index // Use the sorted index
+    }));
   }
 
   private buildAvailabilityMap(): Map<string, TimeSlot[]> {
@@ -198,6 +319,7 @@ export class GeneticScheduler {
     const req = requests[idx];
     const slots = availability.get(req.teacher_id) || [];
 
+    // Try to place the current lesson in one of the available slots
     for (const slot of slots) {
       const key = slotKey(slot);
       const teacherKey = `${req.teacher_id}-${key}`;
@@ -226,7 +348,10 @@ export class GeneticScheduler {
       classBusy.delete(classKey);
     }
 
-    return false;
+    // SOFT FAIL: If we couldn't place THIS lesson, SKIP it and try the rest!
+    // This makes the algorithm resilient to impossible constraints.
+    // We don't return false (which would kill the whole branch), we proceed.
+    return this.backtrack(idx + 1, requests, schedule, teacherBusy, classBusy, availability, budgetCheck);
   }
 
   private calculateFitness(schedule: Lesson[]): number {

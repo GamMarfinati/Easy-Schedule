@@ -45,6 +45,7 @@ const SchedulesPage: React.FC = () => {
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [presets, setPresets] = useState<PresetHorario[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<string>("padrao-30");
+  const [externalConflicts, setExternalConflicts] = useState<any[]>([]);
 
   // Ref para o formulário de professor (para scroll ao editar)
   const teacherFormRef = useRef<HTMLDivElement>(null);
@@ -302,7 +303,12 @@ const SchedulesPage: React.FC = () => {
 
     try {
       const result = await generateSchedule(teachers, timeSlots);
-      setSchedule(result);
+      setSchedule(result.schedule);
+      if (result.conflicts && result.conflicts.length > 0) {
+          setExternalConflicts(result.conflicts);
+      } else {
+          setExternalConflicts([]);
+      }
       setIsConfigCollapsed(true); // Auto-colapsar painel após geração
       setGenerationCount((prev) => prev + 1);
     } catch (err: any) {
@@ -432,6 +438,43 @@ const SchedulesPage: React.FC = () => {
     }
   };
 
+  // Exportar professores para CSV
+  const handleExportCSV = useCallback(() => {
+    if (teachers.length === 0) return;
+
+    // Cabeçalhos
+    const headers = ["Nome", "Disciplina", "Disponibilidade", "Atribuições"];
+    
+    // Linhas de dados
+    const rows = teachers.map((t) => {
+      const assignments = t.classAssignments
+        .map((a) => `${a.grade} (${a.classCount})`)
+        .join("; ");
+      
+      const availability = t.availabilityDays.join(", ");
+
+      // Escapar campos que podem conter vírgulas com aspas
+      const escape = (text: string) => `"${text.replace(/"/g, '""')}"`;
+
+      return [
+        escape(t.name),
+        escape(t.subject),
+        escape(availability),
+        escape(assignments),
+      ].join(",");
+    });
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "professores_easyschedule.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [teachers]);
+
   // Calcular estatísticas para exibição
   const currentPreset = presets.find((p) => p.id === selectedPresetId);
   const totalAulas = teachers.reduce(
@@ -528,9 +571,21 @@ const SchedulesPage: React.FC = () => {
           </div>
           {teachers.length > 0 && (
             <div className="space-y-4">
-              <h3 className="text-xl font-bold text-gray-800">
-                Professores Adicionados
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold text-gray-800">
+                  Professores Adicionados
+                </h3>
+                <button
+                  onClick={handleExportCSV}
+                  className="flex items-center gap-1 text-sm text-gray-600 hover:text-purple-600 transition-colors px-2 py-1 rounded hover:bg-purple-50"
+                  title="Baixar lista em CSV"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Exportar
+                </button>
+              </div>
               {teachers.map((teacher) => (
                 <TeacherCard
                   key={teacher.id}
@@ -698,6 +753,7 @@ const SchedulesPage: React.FC = () => {
             teachers={teachers}
             onSave={handleSaveSchedule}
             isSaving={isSaving}
+            externalConflicts={externalConflicts}
           />
         </div>
       </div>

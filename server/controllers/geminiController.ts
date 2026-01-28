@@ -31,10 +31,32 @@ export const generateScheduleAI = async (req: Request, res: Response) => {
         name: t.name,
         subject: t.subject,
         availabilityDays: t.availabilityDays,
+        availability: t.availability, // Fixed: Passing granular availability
         classAssignments: t.classAssignments
       }));
 
       const deterministicResult = runGeneticScheduler(frontendTeachers, finalTimeSlots);
+
+      // FAIL FAST INTELIGENTE:
+      // Só abortamos se a grade estiver VAZIA e inválida.
+      // Se tivermos uma grade parcial (mesmo com erros), retornamos para o usuário ver ONDE estão os buracos.
+      if (deterministicResult.validationResult && 
+          !deterministicResult.validationResult.valido && 
+          (!deterministicResult.schedule || deterministicResult.schedule.length === 0)) {
+         
+         const msg = deterministicResult.validationResult.erros[0] || "Erro desconhecido na geração";
+         console.warn(`[HybridScheduler] ⛔ Fail Fast (Grau Crítico): ${msg}`);
+         
+         return res.json({
+             schedule: [],
+             metrics: {
+                 totalLessons: 0,
+                 conflicts: deterministicResult.validationResult.erros.length,
+                 method: 'aborted'
+             },
+             conflicts: deterministicResult.validationResult.erros.map(e => ({ type: 'critical', message: e }))
+         });
+      }
 
       // AGORA: Aceitamos resultado mesmo com conflitos se tivermos alocado algo
       // O 'algorithm.ts' foi modificado para sempre retornar [] ou [{schedule...}]
@@ -57,7 +79,8 @@ export const generateScheduleAI = async (req: Request, res: Response) => {
 
         return res.json({ 
           schedule, 
-          metrics 
+          metrics,
+          conflicts: deterministicResult.conflicts // Pass detailed conflicts to frontend
         });
       }
       

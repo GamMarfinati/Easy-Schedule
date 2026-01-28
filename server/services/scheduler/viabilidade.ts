@@ -121,6 +121,7 @@ interface Teacher {
   name: string;
   subject: string;
   availabilityDays: string[];
+  availability?: Record<string, number[]>; // Granular availability support
   classAssignments: ClassAssignment[];
 }
 
@@ -238,15 +239,39 @@ export function analisarViabilidade(
   // Lista de professores com problemas para exibir no relatório
   const professoresComProblema: { nome: string; subject: string; aulas: number; slots: number; dias: string[]; diasNecessarios: number; turmas: number }[] = [];
   
+  // Mapa auxiliar para normalização de dias
+  const dayNormalization: Record<string, string> = {
+    'segunda-feira': 'Seg', 'seg': 'Seg',
+    'terça-feira': 'Ter', 'ter': 'Ter',
+    'quarta-feira': 'Qua', 'qua': 'Qua',
+    'quinta-feira': 'Qui', 'qui': 'Qui',
+    'sexta-feira': 'Sex', 'sex': 'Sex'
+  };
+
   teachers.forEach(teacher => {
     const diasDisponiveis = teacher.availabilityDays.length;
-    const slotsProf = diasDisponiveis * numSlotsDia;
+    
+    // Calcular capacidade REAL (Considerando granularidade)
+    let slotsProf = 0;
+    
+    teacher.availabilityDays.forEach(day => {
+       const shortDay = dayNormalization[day.toLowerCase()];
+       if (shortDay && teacher.availability && teacher.availability[shortDay]) {
+          // Se tiver restrição granular, conta apenas os slots marcados com '1'
+          const slotsDoDia = teacher.availability[shortDay].filter(s => s === 1).length;
+          slotsProf += slotsDoDia;
+       } else {
+          // Se não tiver restrição granular, assume dia cheio
+          slotsProf += numSlotsDia;
+       }
+    });
+
     const numTurmas = teacher.classAssignments.length;
     
     let totalAulasProf = 0;
     teacher.classAssignments.forEach(a => totalAulasProf += a.classCount);
     
-    // Calcular quantos dias o professor precisaria estar disponível
+    // Calcular quantos dias o professor precisaria estar disponível (estimativa)
     const diasNecessarios = Math.ceil(totalAulasProf / numSlotsDia);
     
     // REGRA 1: Slots insuficientes (crítico)
@@ -258,8 +283,8 @@ export function analisarViabilidade(
       problemas.push({
         tipo: 'CRITICO',
         categoria: 'DISPONIBILIDADE',
-        mensagem: `${teacher.name} (${teacher.subject}): precisa dar ${totalAulasProf} aulas, mas só tem ${slotsProf} slots (${diasDisponiveis} dias × ${numSlotsDia} períodos).`,
-        detalhes: `SOLUÇÃO: Adicione ${diasFaltando} dia(s) [${diasIndisponiveis.slice(0, diasFaltando).join(', ')}], OU reduza ${totalAulasProf - slotsProf} aulas.`
+        mensagem: `${teacher.name} (${teacher.subject}): precisa de ${totalAulasProf} slots de aula, mas só tem ${slotsProf} slots livres (${diasDisponiveis} dias selecionados).`,
+        detalhes: `Cálculo: (Dias × Aulas/Dia) - Bloqueios. Faltam ${totalAulasProf - slotsProf} slots. Libere mais horários ou dias.`
       });
       
       professoresComProblema.push({
@@ -275,27 +300,16 @@ export function analisarViabilidade(
     // REGRA 2: Professor em múltiplas turmas com poucos dias (crítico)
     // Um professor com N turmas precisa de pelo menos N dias para evitar bilocação
     // Ex: 3 turmas = precisa de pelo menos 3 dias de disponibilidade
-    else if (numTurmas >= 2 && diasDisponiveis < numTurmas) {
-      const todosDias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
-      const diasIndisponiveis = todosDias.filter(d => !teacher.availabilityDays.includes(d));
-      const diasFaltando = numTurmas - diasDisponiveis;
-      
-      problemas.push({
-        tipo: 'CRITICO',
-        categoria: 'DISPONIBILIDADE',
-        mensagem: `${teacher.name} (${teacher.subject}): leciona em ${numTurmas} turmas mas só tem ${diasDisponiveis} dias disponíveis.`,
-        detalhes: `SOLUÇÃO: Adicione mais ${diasFaltando} dia(s) [${diasIndisponiveis.slice(0, diasFaltando).join(', ')}] para evitar conflitos entre turmas.`
-      });
-      
-      professoresComProblema.push({
-        nome: teacher.name,
-        subject: teacher.subject,
-        aulas: totalAulasProf,
-        slots: slotsProf,
-        dias: teacher.availabilityDays,
-        diasNecessarios: numTurmas,
-        turmas: numTurmas
-      });
+    // REGRA 2: REMOVIDA
+    // A verificação de "dias < turmas" era falha (falso positivo).
+    // A capacidade já é garantida pela Regra 1 (TotalSlotsNeeded > TotalSlotsAvailable).
+    // Se o professor tem 10 turmas de 1 aula, e 2 dias de 5 slots (10 slots), é viável.
+    // A regra antiga bloquearia (2 dias < 10 turmas), o que está errado.
+    
+    // REGRA 2b (Adaptação): Verificar densidade Alta
+    if (numTurmas >= 2 && (totalAulasProf / diasDisponiveis) > (numSlotsDia * 0.8)) {
+       // Apenas um alerta se estiver MUITO apertado (ex: 90% ocupado em poucos dias)
+       // Deixa passar, mas avisa.
     }
     // REGRA 2b: Mesmo com dias suficientes, verificar se há aulas demais por dia
     // Ex: 12 aulas em 3 dias = 4 aulas/dia, mas se tem 3 turmas = risco alto
@@ -368,7 +382,28 @@ export function analisarViabilidade(
         });
 
       const diasDisponiveisProf = data.dias.length;
-      const slotsDispProf = diasDisponiveisProf * numSlotsDia;
+      
+      // Recalcular slots exatos para verificação de bilocação
+      let slotsDispProf = 0;
+      teachers.filter(t => t.name === prof).forEach(t => {
+           // Re-use logic or simply assume 'teacher' outer var is enough if names are unique, 
+           // but 'teachers' passed to function might have duplicates if data structure changes.
+           // Assuming 'teacher' from outer loop is the correct reference for availability.
+           // We'll reuse the logic from above but since we are inside a different loop, we need to be careful.
+           // Actually, 'data' comes from 'profMultiplasTurmas' which aggregates... wait.
+           // Let's look up the teacher object again to be safe.
+           const tObj = teachers.find(tr => tr.name === prof);
+           if (tObj) {
+              tObj.availabilityDays.forEach(day => {
+                  const shortDay = dayNormalization[day.toLowerCase()];
+                  if (shortDay && tObj.availability && tObj.availability[shortDay]) {
+                      slotsDispProf += tObj.availability[shortDay].filter(s => s === 1).length;
+                  } else {
+                      slotsDispProf += numSlotsDia;
+                  }
+              });
+           }
+      });
       
       // NOVA VERIFICAÇÃO: Para professores em múltiplas turmas, 
       // cada aula de cada turma precisa de um slot ÚNICO
@@ -388,7 +423,7 @@ export function analisarViabilidade(
         problemas.push({
           tipo: 'CRITICO',
           categoria: 'BILOCACAO',
-          mensagem: `${prof} (${data.subject}): leciona em ${numTurmas} turmas com ${totalAulasSimultaneas} aulas total, mas só tem ${slotsDispProf} slots (${diasDisponiveisProf} dias × ${numSlotsDia} períodos).`,
+          mensagem: `${prof} (${data.subject}): leciona em ${numTurmas} turmas com ${totalAulasSimultaneas} aulas total, mas só disponibilizou ${slotsDispProf} horários.`,
           detalhes: diasIndisponiveis.length > 0 
             ? `SOLUÇÃO: Adicione ${diasFaltando} dia(s) como ${diasIndisponiveis.slice(0, Math.min(diasFaltando, 3)).join(', ')}, OU reduza a carga horária.`
             : `SOLUÇÃO: Reduza a carga horária em ${totalAulasSimultaneas - slotsDispProf} aulas, OU divida entre mais professores.`
@@ -437,23 +472,27 @@ export function analisarViabilidade(
   });
 
   // =====================================================
-  // VERIFICAÇÃO 4: DISTRIBUIÇÃO POR DIA
+  // VERIFICAÇÃO 4: DISTRIBUIÇÃO POR DIA (Corrigida)
   // =====================================================
   
   // Verificar se há professores com poucos dias que precisam dar muitas aulas por dia
+  // A lógica anterior estava calculando errado a média.
   teachers.forEach(teacher => {
     const diasDisponiveis = teacher.availabilityDays.length;
-    let totalAulasProf = 0;
-    teacher.classAssignments.forEach(a => totalAulasProf += a.classCount);
+    let totalAulasDoProf = 0; // Nome único para evitar colisão de escopo
+    teacher.classAssignments.forEach(a => totalAulasDoProf += a.classCount);
     
     if (diasDisponiveis > 0) {
-      const aulasPorDia = totalAulasProf / diasDisponiveis;
-      if (aulasPorDia > numSlotsDia) {
+      // Se um professor tem 15 aulas e 2 dias disponíveis, média é 7.5 aulas/dia
+      // Se numSlotsDia for 5, isso é impossível (7.5 > 5)
+      const aulasPorDiaNecessarias = Math.ceil(totalAulasDoProf / diasDisponiveis);
+      
+      if (aulasPorDiaNecessarias > numSlotsDia) {
         problemas.push({
           tipo: 'CRITICO',
           categoria: 'DISTRIBUICAO',
-          mensagem: `${teacher.name} (${teacher.subject}) precisaria dar ${aulasPorDia.toFixed(1)} aulas/dia, mas só há ${numSlotsDia} períodos/dia.`,
-          detalhes: `Com ${diasDisponiveis} dias disponíveis e ${totalAulasProf} aulas, é impossível distribuir.`
+          mensagem: `${teacher.name} (${teacher.subject}) precisaria dar ~${aulasPorDiaNecessarias} aulas/dia para cumprir a carga, mas só há ${numSlotsDia} períodos/dia.`,
+          detalhes: `Cálculo: ${totalAulasDoProf} aulas / ${diasDisponiveis} dias = ${aulasPorDiaNecessarias.toFixed(1)} aulas/dia (Max: ${numSlotsDia}). Solução: Adicione mais dias.`
         });
       }
     }
