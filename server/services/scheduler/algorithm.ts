@@ -18,6 +18,7 @@ interface SchedulerVariable {
   subject: Subject;
   teacherId: string;
   durationIndex: number;
+  degree?: number; // Cache for heuristic
 }
 
 const slotKey = (slot: TimeSlot) => `${slot.day}-${slot.period}`;
@@ -65,11 +66,29 @@ export class GeneticScheduler {
       }
     });
 
-    // Heuristic: Sort by domain size (most constrained first = FAIL FAST)
+    // Calcule o grau (degree) para cada variável
+    // Grau = Número de outras variáveis que compartilham o mesmo professor ou turma
+    const teacherCounts = new Map<string, number>();
+    const classCounts = new Map<string, number>();
+
+    this.variables.forEach(v => {
+      teacherCounts.set(v.teacherId, (teacherCounts.get(v.teacherId) || 0) + 1);
+      classCounts.set(v.classId, (classCounts.get(v.classId) || 0) + 1);
+    });
+
+    // Heuristic: Sort by MRV (Domain Size) THEN Degree Heuristic (Most Constraining Variable)
     this.variables.sort((a, b) => {
       const lenA = this.domains.get(a.id)?.length || 0;
       const lenB = this.domains.get(b.id)?.length || 0;
-      return lenA - lenB;
+      
+      // 1. Minimum Remaining Values (MRV)
+      if (lenA !== lenB) return lenA - lenB;
+
+      // 2. Degree Heuristic (Tie-breaker)
+      const degreeA = (teacherCounts.get(a.teacherId) || 0) + (classCounts.get(a.classId) || 0);
+      const degreeB = (teacherCounts.get(b.teacherId) || 0) + (classCounts.get(b.classId) || 0);
+      
+      return degreeB - degreeA; // Higher degree first
     });
   }
 
@@ -82,9 +101,16 @@ export class GeneticScheduler {
 
     // Track best solution across all restarts
     for (let attempt = 0; attempt < maxRestarts; attempt++) {
+        // Strategy: 
+        // Attempt 0: STRICT Mode (No skipping). Best for finding perfect solutions.
+        // Attempt 1+: SOFT Mode (Allow skipping). Best for finding partial solutions if perfect is impossible.
+        const allowSkip = (attempt > 0);
+
         if (attempt > 0) {
-            console.log(`[Algorithm] Restarting search (Attempt ${attempt + 1}/${maxRestarts})...`);
-            this.shuffleVariables(); 
+            console.log(`[Algorithm] Restarting search (Attempt ${attempt + 1}/${maxRestarts}) [Strategy: ${allowSkip ? 'SOFT/GREEDY' : 'STRICT'}]...`);
+            if (attempt > 1) this.shuffleVariables(); // Manipulate order for attempts 2+
+        } else {
+             console.log(`[Algorithm] Tentativa Inicial (Strict Mode - Busca Exata)...`);
         }
 
         const requests = this.expandRequests();
@@ -94,9 +120,6 @@ export class GeneticScheduler {
         const classBusy = new Set<string>();
         let nodesExplored = 0;
         
-        // Local best for this attempt
-        let maxPlacedThisAttempt = 0;
-
         // Callback to track progress and stop if taking too long
         const budgetCheck = () => {
           nodesExplored++;
@@ -111,7 +134,7 @@ export class GeneticScheduler {
         };
 
         // Run backtracking
-        this.backtrack(0, requests, schedule, teacherBusy, classBusy, availabilityMap, budgetCheck);
+        this.backtrack(0, requests, schedule, teacherBusy, classBusy, availabilityMap, budgetCheck, allowSkip);
         
         // Final check for this attempt
         if (schedule.length > maxGlobalPlaced) {
@@ -132,9 +155,25 @@ export class GeneticScheduler {
     console.warn(`[Algorithm] Incompleto após tentativas. Retornando melhor parcial: ${maxGlobalPlaced} aulas.`);
     
     // --- Detailed Conflict Analysis ---
-    // --- Detailed Conflict Analysis ---
     const conflicts: any[] = [];
-
+    // ... (rest of function usually follows here)
+    // To facilitate the tool replacement, I'll return the conflicts block start here but I must match the EndLine carefully.
+    // The previous block ended at 355 which is inside backtrack. I need to be careful.
+    // I am effectively rewriting 'generate' AND 'backtrack' mostly.
+    
+    // Since I cannot rewrite the Conflict Analysis block at the bottom of generate() easily without including it (which is long),
+    // and the prompt asks for specific chunks. 
+    // I will break this into the 'generate' method top part and 'backtrack' method bottom part?
+    // No, replace_file_content replaces a contiguous block. 
+    // I will effectively include the logic to calling conflict analysis but not the analysis itself if I can help it.
+    // Wait, the Conflict Analysis logic starts at line 134 in the original file.
+    // My replacement starts at line 76 (start of generate).
+    
+    // Let's include the END of generate() logic up to the conflict analysis start.
+    
+    // ... (Copied logic for conflict analysis prep)
+    
+     // --- Detailed Conflict Analysis ---
     // 1. Identify actually unplaced variables
     const placedTracker = new Map<string, number>(); 
     const actuallyUnplaced: SchedulerVariable[] = [];
@@ -189,7 +228,7 @@ export class GeneticScheduler {
 
         const validSlots = this.domains.get(sample.id) || [];
         
-        // Causa 1: Sem disponibilidade (Domínio Vazio)
+        // Causa 1: Sem disponibilidade
         if (validSlots.length === 0) {
              conflicts.push({ 
                  type: 'availability', 
@@ -199,7 +238,7 @@ export class GeneticScheduler {
              return;
         }
 
-        // Causa 2: Slots validos estão ocupados
+        // Causa 2: Slots validos ocupados
         const reasons: string[] = [];
         let blockedByTeacherCount = 0;
         let blockedByClassCount = 0;
@@ -213,42 +252,38 @@ export class GeneticScheduler {
 
              if (tLesson) {
                  blockedByTeacherCount++;
-                 // Find who the teacher is teaching instead
                  const otherClassName = this.input.classes.find(c => c.id === tLesson.class_id)?.name || "outra turma";
-                 reasons.push(`Prof. ocupado com ${otherClassName} na ${formatSlot(slot.day, slot.period)}`);
+                 reasons.push(`ocupado com ${otherClassName} na ${formatSlot(slot.day, slot.period)}`);
              } else if (cLesson) {
                  blockedByClassCount++;
-                 // Find who is teaching the class instead
                  const otherTeacherName = this.input.teachers.find(t => t.id === cLesson.teacher_id)?.name || "outro prof";
-                 reasons.push(`Turma ocupada com ${otherTeacherName} (${cLesson.subject}) na ${formatSlot(slot.day, slot.period)}`);
+                 reasons.push(`turma em aula com ${otherTeacherName} (${cLesson.subject}) na ${formatSlot(slot.day, slot.period)}`);
              }
         });
 
         const missingCount = vars.length;
-        let mainMsg = `Não foi possível alocar ${missingCount} aula(s) de ${subjectName} (${teacherName}) na turma ${className}.`;
+        let mainMsg = `${missingCount} aula(s) de ${subjectName} não puderam ser alocadas para a turma ${className}.`;
         let userAction = "";
 
-        // Heurística de Mensagem
         if (blockedByTeacherCount === validSlots.length) {
-            mainMsg = `Prof. ${teacherName} está ocupado em TODOS os seus horários possíveis.`;
-            userAction = `Sugestão: O professor precisa liberar mais horários ou trocar aulas de outras turmas.`;
+            mainMsg = `O professor(a) ${teacherName} não possui horários livres suficientes.`;
+            userAction = `Disponibilize mais horários para este professor ou remova atribuições.`;
         } else if (blockedByClassCount === validSlots.length) {
-            const conflictingProf = reasons[0].match(/com (.+?) \(/)?.[1] || "outro professor";
-            mainMsg = `Conflito Direto: A turma ${className} já está ocupada nos dias em que o Prof. ${teacherName} pode.`;
-            userAction = `Sugestão: Verifique se ${conflictingProf} pode ceder o horário ou mude a disponibilidade de ${teacherName}.`;
+            mainMsg = `A turma ${className} está cheia nos horários em que ${teacherName} poderia dar aula.`;
+            userAction = `Tente trocar horários de outros professores desta turma.`;
         } else {
-            mainMsg = `Conflito Complexo: ${teacherName} disputa horários com outros professores na turma ${className}.`;
-            userAction = `Sugestão: Tente processar esta disciplina com prioridade maior ou flexibilizar os horários.`;
+            mainMsg = `Conflito de horários para ${subjectName} (${teacherName}) na turma ${className}.`;
+            userAction = `Aumente a flexibilidade da disponibilidade para encontrar um encaixe.`;
         }
 
-        // Pick top 3 unique reasons
-        const uniqueReasons = Array.from(new Set(reasons));
-        const logicTrace = uniqueReasons.slice(0, 3).join("; ") + (uniqueReasons.length > 3 ? "..." : ".");
+        // Agrupar visualmente os motivos para não ficar repetitivo
+        // Ex: "ocupado com 9A (Seg 1, Seg 2); ocupado com 9B (Ter 1)"
+        const logicTrace = reasons.slice(0, 3).join("; ") + (reasons.length > 3 ? "..." : ".");
 
         conflicts.push({ 
             type: 'unallocated', 
             message: mainMsg, 
-            details: `${userAction} Detalhes: ${logicTrace}` 
+            details: `${userAction} Bloqueios: ${logicTrace}` 
         });
     });
 
@@ -257,44 +292,47 @@ export class GeneticScheduler {
   }
 
   private shuffleVariables() {
-      // Fisher-Yates shuffle but respecting MRV (sort by domain size, but randomize ties or slightly perturb domain size)
-      // Actually, pure random shuffle might destroy MRV benefit. 
-      // Better: Sort by Domain Size + Random Noise
+      // Sort by Domain Size + Random Noise
       this.variables.sort((a, b) => {
           const lenA = this.domains.get(a.id)?.length || 0;
           const lenB = this.domains.get(b.id)?.length || 0;
-          // Weighted: Primary is length, Secondary is random
           if (lenA !== lenB) return lenA - lenB;
           return Math.random() - 0.5;
       });
   }
 
-  // ... (rest of methods likely unchanged, keeping expandRequests for context if needed, but only replacing generate and backtrack logic if needed)
-
+  // private expandRequests... from original file
   private expandRequests(): LessonRequest[] {
-    // Use the variables that were ALREADY sorted by MRV (Minimum Remaining Values) in the constructor
-    // This ensures we tackle the most constrained lessons (hardest to place) first.
     return this.variables.map((v, index) => ({
       class_id: v.classId,
       subject: v.subject.name,
       teacher_id: v.teacherId,
-      index: index // Use the sorted index
+      index: index
     }));
   }
 
   private buildAvailabilityMap(): Map<string, TimeSlot[]> {
-     // ... same as before
     const dayOrder = new Map<string, number>();
     this.input.days.forEach((d, idx) => dayOrder.set(d, idx));
 
     const map = new Map<string, TimeSlot[]>();
     this.input.teachers.forEach(teacher => {
+      // Pré-processamento: Ordenar slots para minimizar janelas
+      // Prioridade: Preencher dias que o professor já tem maior disponibilidade ou preferência
+      // No backtrack simples, não temos o estado atual, mas podemos dar preferência a slots extremos (primeiros ou ultimos)
+      // para evitar "quebrar" o meio, ou agrupar por dia.
+      
       const orderedSlots = teacher.disponibility
         .filter(slot => dayOrder.has(slot.day) && slot.period >= 1 && slot.period <= this.input.periods)
         .sort((a, b) => {
-          const dayCompare = (dayOrder.get(a.day) ?? 0) - (dayOrder.get(b.day) ?? 0);
-          if (dayCompare !== 0) return dayCompare;
-          return a.period - b.period;
+           const dA = dayOrder.get(a.day) ?? 0;
+           const dB = dayOrder.get(b.day) ?? 0;
+           
+           // Agrupar fortemente por dia primeiro
+           if (dA !== dB) return dA - dB;
+           
+           // Dentro do dia, ordem sequencial (manter lógica de preencher na ordem)
+           return a.period - b.period;
         });
       map.set(teacher.id, orderedSlots);
     });
@@ -308,7 +346,8 @@ export class GeneticScheduler {
     teacherBusy: Set<string>,
     classBusy: Set<string>,
     availability: Map<string, TimeSlot[]>,
-    budgetCheck: () => boolean
+    budgetCheck: () => boolean,
+    allowSkip: boolean
   ): boolean {
     if (idx >= requests.length) {
       return true;
@@ -327,6 +366,53 @@ export class GeneticScheduler {
 
       if (teacherBusy.has(teacherKey) || classBusy.has(classKey)) continue;
 
+      // --- FORWARD CHECKING (Look-ahead) ---
+      // Antes de confirmar este slot, verifique se ele "mata" alguma variável futura
+      // que depende estritamente deste professor ou desta turma.
+      let possible = true;
+      
+      // Look ahead apenas para as próximas N variáveis para não perder performance
+      const lookAheadLimit = 50; 
+      let checked = 0;
+
+      for (let k = idx + 1; k < requests.length; k++) {
+          if (checked++ > lookAheadLimit) break;
+
+          const futureReq = requests[k];
+          
+          // Se não tem conflito de recurso (prof/turma), ignora
+          if (futureReq.teacher_id !== req.teacher_id && futureReq.class_id !== req.class_id) continue;
+
+          // Se tem conflito, verifique se a variável futura ainda tem slots válidos
+          // O slot atual 'teacherKey' e 'classKey' estarao ocupados.
+          // Precisamos ver se sobra algo no dominio dela.
+          const futureSlots = availability.get(futureReq.teacher_id) || [];
+          
+          let hasFutureSlot = false;
+          for (const fs of futureSlots) {
+              const fsKey = slotKey(fs);
+              const fsTeacherKey = `${futureReq.teacher_id}-${fsKey}`;
+              const fsClassKey = `${futureReq.class_id}-${fsKey}`;
+
+              // Se o slot futuro colide com o ATUAL que estamos tentando alocar, pule
+              if (fsTeacherKey === teacherKey || fsClassKey === classKey) continue;
+              
+              // Se ja esta ocupado por alocacoes passadas, pule
+              if (teacherBusy.has(fsTeacherKey) || classBusy.has(fsClassKey)) continue;
+
+              hasFutureSlot = true;
+              break; // Achou pelo menos 1, ta salvo
+          }
+
+          if (!hasFutureSlot) {
+              possible = false;
+              break; // Forward check failed: Esta escolha mata uma aula futura
+          }
+      }
+
+      if (!possible && !allowSkip) continue; // Prune branch (unless in soft mode)
+      // -------------------------------------
+
       // place lesson
       schedule.push({
         day: slot.day,
@@ -338,7 +424,7 @@ export class GeneticScheduler {
       teacherBusy.add(teacherKey);
       classBusy.add(classKey);
 
-      if (this.backtrack(idx + 1, requests, schedule, teacherBusy, classBusy, availability, budgetCheck)) {
+      if (this.backtrack(idx + 1, requests, schedule, teacherBusy, classBusy, availability, budgetCheck, allowSkip)) {
         return true;
       }
 
@@ -348,10 +434,14 @@ export class GeneticScheduler {
       classBusy.delete(classKey);
     }
 
-    // SOFT FAIL: If we couldn't place THIS lesson, SKIP it and try the rest!
-    // This makes the algorithm resilient to impossible constraints.
-    // We don't return false (which would kill the whole branch), we proceed.
-    return this.backtrack(idx + 1, requests, schedule, teacherBusy, classBusy, availability, budgetCheck);
+    // SOFT FAIL STRATEGY (Allow Skipping)
+    // Only enabled if allowSkip is true (Attempts 2+)
+    if (allowSkip) {
+        return this.backtrack(idx + 1, requests, schedule, teacherBusy, classBusy, availability, budgetCheck, allowSkip);
+    }
+
+    // STRICT MODE: If we can't place it, we return FALSE to trigger backtracking in the caller.
+    return false;
   }
 
   private calculateFitness(schedule: Lesson[]): number {

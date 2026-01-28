@@ -226,11 +226,12 @@ const CellContent: React.FC<{
   grade?: string;
   subject: string;
   teacher?: string;
-}> = ({ grade, subject, teacher }) => {
+  isConflict?: boolean;
+}> = ({ grade, subject, teacher, isConflict }) => {
   return (
-    <div className="bg-blue-50 p-2 rounded-lg h-full flex flex-col justify-center text-center border-l-4 border-blue-400 text-xs">
-      {grade && <p className="font-bold text-sm text-blue-900">{grade}</p>}
-      <p className="text-blue-800 font-medium">{subject}</p>
+    <div className={`${isConflict ? 'bg-red-100 border-red-500' : 'bg-blue-50 border-blue-400'} p-2 rounded-lg h-full flex flex-col justify-center text-center border-l-4 text-xs transition-colors duration-300 w-full`}>
+      {grade && <p className={`font-bold text-sm ${isConflict ? 'text-red-900' : 'text-blue-900'}`}>{grade}</p>}
+      <p className={`${isConflict ? 'text-red-800' : 'text-blue-800'} font-medium`}>{subject}</p>
       {teacher && <p className="text-gray-500 italic mt-1">{teacher}</p>}
     </div>
   );
@@ -613,51 +614,64 @@ const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({
 
   const renderCell = (day: string, timeSlot: string) => {
     const slotData = schedule[day]?.[timeSlot] ?? [];
+    
+    // Identificar se há conflito visualmente na célula
+    // TODO: Adicionar lógica mais robusta de conflito aqui se os dados do backend trouxerem IDs específicos
+    const hasMultipleLessons = slotData.length > 1;
+    const isConflict = hasMultipleLessons && new Set(slotData.map(d => d.grade)).size !== slotData.length;
 
     if (!slotData || slotData.length === 0) {
       return null;
     }
 
-    switch (displayMode) {
-      case "geral":
-        // Mostra todas as aulas do slot
-        return (
-          <div className="flex flex-col gap-1">
-            {slotData.map((item, idx) => (
+    const cellContent = (() => {
+      switch (displayMode) {
+        case "geral":
+           return (
+            <div className="flex flex-col gap-1 w-full">
+              {slotData.map((item, idx) => (
+                <CellContent
+                  key={idx}
+                  grade={item.grade}
+                  subject={item.subject}
+                  teacher={item.teacherName}
+                  isConflict={isConflict}
+                />
+              ))}
+            </div>
+          );
+        case "turma":
+          const turmaItem = slotData.find((item) => item.grade === selectedGrade);
+          if (turmaItem) {
+            return (
               <CellContent
-                key={idx}
-                grade={item.grade}
-                subject={item.subject}
-                teacher={item.teacherName}
+                subject={turmaItem.subject}
+                teacher={turmaItem.teacherName}
               />
-            ))}
-          </div>
-        );
-      case "turma":
-        // Filtra apenas a turma selecionada
-        const turmaItem = slotData.find((item) => item.grade === selectedGrade);
-        if (turmaItem) {
-          return (
-            <CellContent
-              subject={turmaItem.subject}
-              teacher={turmaItem.teacherName}
-            />
+            );
+          }
+          break;
+        case "professor":
+          const profItem = slotData.find(
+            (item) => item.teacherName === selectedTeacherName
           );
-        }
-        break;
-      case "professor":
-        // Filtra apenas o professor selecionado
-        const profItem = slotData.find(
-          (item) => item.teacherName === selectedTeacherName
-        );
-        if (profItem) {
-          return (
-            <CellContent grade={profItem.grade} subject={profItem.subject} />
-          );
-        }
-        break;
-    }
-    return null;
+          if (profItem) {
+            return (
+               <CellContent grade={profItem.grade} subject={profItem.subject} />
+            );
+          }
+          break;
+      }
+      return null;
+    })();
+
+    if (!cellContent) return null;
+
+    return (
+      <div className={`h-full w-full ${isConflict ? 'animate-pulse' : ''}`}>
+         {cellContent}
+      </div>
+    );
   };
 
   // Renderiza a Matrix View para o modo 'geral'
