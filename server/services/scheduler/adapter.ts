@@ -43,6 +43,43 @@ const DAY_MAP_REVERSE: Record<string, string> = {
 const DAYS_SHORT = ['seg', 'ter', 'qua', 'qui', 'sex'];
 const DAYS_FULL = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
 
+const PAUSE_KEYWORDS = ['intervalo', 'almoço', 'almoco', 'recreio', 'pausa', 'lanche'];
+
+/**
+ * Returns the indices of time slots that are NOT pauses/intervals.
+ */
+export function getValidSlotIndices(timeSlots: string[]): number[] {
+  return timeSlots.reduce((indices, slot, index) => {
+    if (!PAUSE_KEYWORDS.some(keyword => slot.toLowerCase().includes(keyword))) {
+      indices.push(index);
+    }
+    return indices;
+  }, [] as number[]);
+}
+
+/**
+ * Normalizes availability mask by keeping only values corresponding to valid slots.
+ * Returns a new availability object where masks align 1:1 with logical periods.
+ */
+export function normalizeAvailability(
+  availability: Record<string, number[]> | undefined,
+  validIndices: number[]
+): Record<string, number[]> | undefined {
+  if (!availability) return undefined;
+
+  const normalized: Record<string, number[]> = {};
+  Object.entries(availability).forEach(([day, mask]) => {
+    // Map valid indices to create a compacted mask
+    // If original mask is shorter or undefined at index, default to 1 (Available)
+    const newMask = validIndices.map(index => {
+      const val = mask[index];
+      return val === undefined ? 1 : val;
+    });
+    normalized[day] = newMask;
+  });
+  return normalized;
+}
+
 /**
  * Converte dados do formato Frontend para o formato esperado pelo Scheduler
  */
@@ -50,11 +87,11 @@ export function convertToGeneticInput(
   frontendTeachers: FrontendTeacher[],
   timeSlots: string[]
 ): ScheduleInput {
-  // Filtrar slots de pausa (Intervalo, Almoço, etc.)
-  const pauseKeywords = ['intervalo', 'almoço', 'almoco', 'recreio', 'pausa', 'lanche'];
-  const validSlots = timeSlots.filter(slot => 
-    !pauseKeywords.some(keyword => slot.toLowerCase().includes(keyword))
-  );
+
+  const validIndices = getValidSlotIndices(timeSlots);
+
+  // Filtrar validSlots names for display/reverse mapping
+  const validSlots = timeSlots.filter((_, idx) => validIndices.includes(idx));
   
   const numPeriods = validSlots.length;
 
@@ -88,11 +125,17 @@ export function convertToGeneticInput(
        // Verificamos se há restrição granular (fine-tuning) para este dia
        if (granularAvailability.has(shortDay)) {
           const slotsMask = granularAvailability.get(shortDay)!;
-          slotsMask.forEach((isAvailable, index) => {
-             if (isAvailable === 1) {
-                disponibility.push({ day: shortDay, period: index + 1 });
+
+          // FIX: Iterate through logical periods and map back to original indices
+          for (let period = 1; period <= numPeriods; period++) {
+             const originalIndex = validIndices[period - 1];
+             const isAvailable = slotsMask[originalIndex];
+
+             // Treat undefined as 1 (Available), only 0 is Explicitly Blocked
+             if (isAvailable !== 0) {
+                disponibility.push({ day: shortDay, period });
              }
-          });
+          }
        } else {
           // Se NÃO tem restrição granular, assume dia cheio (fallback padrão)
           for (let period = 1; period <= numPeriods; period++) {
@@ -143,7 +186,7 @@ export function convertToGeneticInput(
       group_labs: false
     },
     // Guardar mapeamento de slots válidos para reconstrução
-    validSlotIndices: validSlots.map((_, i) => i),
+    validSlotIndices: validIndices,
     validSlotNames: validSlots
   } as ScheduleInput & { validSlotIndices: number[]; validSlotNames: string[] };
 }
@@ -170,9 +213,8 @@ export function convertFromGeneticOutput(
   });
 
   // Filtrar slots de pausa para mapeamento correto
-  const pauseKeywords = ['intervalo', 'almoço', 'almoco', 'recreio', 'pausa', 'lanche'];
   const validSlots = input.validSlotNames || timeSlots.filter(slot => 
-    !pauseKeywords.some(keyword => slot.toLowerCase().includes(keyword))
+    !PAUSE_KEYWORDS.some(keyword => slot.toLowerCase().includes(keyword))
   );
 
   // Converter lessons para formato flat
@@ -249,13 +291,22 @@ export function runGeneticScheduler(
 
   console.log(`[StrictScheduler] Iniciando com ${frontendTeachers.length} professores`);
 
+  // Pre-calculate valid indices
+  const validIndices = getValidSlotIndices(timeSlots);
+
+  // Create normalized teachers for Validator (so restricoesGranulares matches periods)
+  const normalizedTeachersForValidator = frontendTeachers.map(t => ({
+    ...t, // copy other props
+    availability: normalizeAvailability(t.availability, validIndices)
+  }));
+
   // Converter dados
   const input = convertToGeneticInput(frontendTeachers, timeSlots);
-  const regras = converterParaRegras(frontendTeachers.map(t => ({
+  const regras = converterParaRegras(normalizedTeachersForValidator.map(t => ({
     name: t.name,
     subject: t.subject,
     availabilityDays: t.availabilityDays,
-    availability: t.availability, // PASSAR A DISPONIBILIDADE GRANULAR
+    availability: t.availability, // PASSAR A DISPONIBILIDADE NORMALIZADA (já feito no map acima)
     classAssignments: t.classAssignments.map(a => ({ grade: a.grade, classCount: a.classCount }))
   })));
 
