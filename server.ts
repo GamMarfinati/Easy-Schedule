@@ -47,6 +47,7 @@ app.use(
           "https://lh3.googleusercontent.com", // Google Profile Images
           "https://*.googleusercontent.com", // Catch-all for Google images
           "https://dev-szvibc258sbp53d0.us.auth0.com", // Avatar do usuário vem daqui as vezes
+          "https://s.gravatar.com", // Gravatar
         ],
         connectSrc: [
           "'self'",
